@@ -238,6 +238,6 @@ src/
 
 **MIT License**
 
-使用 [Claude Code](https://claude.ai) 构建
+由 [Ad Huang](https://github.com/Adaimade) 使用 [Claude Code](https://claude.ai) 构建
 
 </div>

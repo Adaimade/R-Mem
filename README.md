@@ -238,6 +238,6 @@ Community contributions welcome — open an issue or PR.
 
 **MIT License**
 
-Built with [Claude Code](https://claude.ai)
+Created by [Ad Huang](https://github.com/Adaimade) with [Claude Code](https://claude.ai)
 
 </div>

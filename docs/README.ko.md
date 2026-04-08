@@ -238,6 +238,6 @@ src/
 
 **MIT License**
 
-[Claude Code](https://claude.ai)로 구축
+[Ad Huang](https://github.com/Adaimade)이 [Claude Code](https://claude.ai)로 구축
 
 </div>

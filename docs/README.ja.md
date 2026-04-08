@@ -238,6 +238,6 @@ src/
 
 **MIT License**
 
-[Claude Code](https://claude.ai) で構築
+[Ad Huang](https://github.com/Adaimade) が [Claude Code](https://claude.ai) で構築
 
 </div>
