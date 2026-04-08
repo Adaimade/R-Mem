@@ -11,7 +11,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 
-[빠른 시작](#-빠른-시작) · [작동 방식](#-작동-방식) · [사용법](#-사용법) · [아키텍처](#️-아키텍처) · [로드맵](#️-로드맵)
+[빠른 시작](#-빠른-시작) · [작동 방식](#-작동-방식) · [사용법](#-사용법) · [MCP](#-mcp-server) · [아키텍처](#️-아키텍처) · [로드맵](#️-로드맵)
 
 🌐 [English](../README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -202,6 +202,29 @@ httpx.post("http://localhost:8019/memories/add",
 
 ---
 
+## 🔌 MCP Server
+
+R-Mem은 MCP server로 작동합니다 — 한 줄 명령으로 Claude Code 또는 Cursor에 장기 메모리를 부여:
+
+```bash
+# Claude Code
+claude mcp add rustmem -- /path/to/rustmem mcp
+
+# Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "rustmem": {
+      "command": "/path/to/rustmem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**7개 tools:** `add_memory`, `search_memory`, `list_memories`, `get_memory`, `delete_memory`, `get_graph`, `reset_memories`
+
+---
+
 ## 🏗️ 아키텍처
 
 ```
@@ -209,6 +232,7 @@ src/
 ├── main.rs          CLI 진입점 (clap)
 ├── config.rs        TOML + 환경 변수 설정
 ├── server.rs        REST API (axum)
+├── mcp.rs           MCP server (rmcp) — stdio를 통한 7개 tools
 ├── memory.rs        코어 오케스트레이터 — 3계층 메모리 파이프라인
 ├── extract.rs       LLM prompts: 사실/엔티티/관계 추출
 ├── embedding.rs     OpenAI 호환 embedding 클라이언트
@@ -216,7 +240,7 @@ src/
 └── graph.rs         SQLite graph store (soft-delete, 다중값 관계)
 ```
 
-**8개 파일. 1,748줄. 외부 서비스 제로.**
+**9개 파일. 1,748줄. 외부 서비스 제로.**
 
 ---
 
@@ -224,7 +248,7 @@ src/
 
 | 상태 | 기능 | 설명 |
 |---|---|---|
-| 🔲 | **MCP Server** | 메모리를 MCP tools로 Claude / Cursor에 제공 |
+| ✅ | **MCP Server** | `rustmem mcp` — stdio를 통한 7개 tools, Claude Code / Cursor 지원 |
 | 🔲 | **배치 임포트** | 기존 mem0 내보내기 데이터 로드 |
 | 🔲 | **멀티모달** | 이미지/오디오 메모리 지원 |
 | 🔲 | **Agent SDK** | Rust crate로 직접 임베딩 (HTTP 불필요) |

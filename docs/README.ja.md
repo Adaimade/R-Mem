@@ -11,7 +11,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 
-[クイックスタート](#-クイックスタート) · [仕組み](#-仕組み) · [使い方](#-使い方) · [アーキテクチャ](#️-アーキテクチャ) · [ロードマップ](#️-ロードマップ)
+[クイックスタート](#-クイックスタート) · [仕組み](#-仕組み) · [使い方](#-使い方) · [MCP](#-mcp-server) · [アーキテクチャ](#️-アーキテクチャ) · [ロードマップ](#️-ロードマップ)
 
 🌐 [English](../README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [한국어](README.ko.md)
 
@@ -202,6 +202,29 @@ httpx.post("http://localhost:8019/memories/add",
 
 ---
 
+## 🔌 MCP Server
+
+R-Mem は MCP server として動作します — 1 コマンドで Claude Code や Cursor に長期メモリを付与：
+
+```bash
+# Claude Code
+claude mcp add rustmem -- /path/to/rustmem mcp
+
+# Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "rustmem": {
+      "command": "/path/to/rustmem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**7 つの tools：** `add_memory`、`search_memory`、`list_memories`、`get_memory`、`delete_memory`、`get_graph`、`reset_memories`
+
+---
+
 ## 🏗️ アーキテクチャ
 
 ```
@@ -209,6 +232,7 @@ src/
 ├── main.rs          CLI エントリポイント（clap）
 ├── config.rs        TOML + 環境変数設定
 ├── server.rs        REST API（axum）
+├── mcp.rs           MCP server（rmcp）— stdio 経由の 7 tools
 ├── memory.rs        コアオーケストレータ — 3層メモリパイプライン
 ├── extract.rs       LLM prompts：事実/エンティティ/関係抽出
 ├── embedding.rs     OpenAI 互換 embedding クライアント
@@ -216,7 +240,7 @@ src/
 └── graph.rs         SQLite graph store（soft-delete、多値関係）
 ```
 
-**8 ファイル。1,748 行。外部サービスゼロ。**
+**9 ファイル。1,748 行。外部サービスゼロ。**
 
 ---
 
@@ -224,7 +248,7 @@ src/
 
 | ステータス | 機能 | 説明 |
 |---|---|---|
-| 🔲 | **MCP Server** | メモリを MCP tools として Claude / Cursor に提供 |
+| ✅ | **MCP Server** | `rustmem mcp` — stdio 経由の 7 tools、Claude Code / Cursor 対応 |
 | 🔲 | **バッチインポート** | 既存の mem0 エクスポートデータを読み込み |
 | 🔲 | **マルチモーダル** | 画像/音声メモリサポート |
 | 🔲 | **Agent SDK** | Rust crate による直接埋め込み（HTTP 不要） |

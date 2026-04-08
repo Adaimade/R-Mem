@@ -11,7 +11,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 
-[Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Usage](#-usage) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
+[Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Usage](#-usage) · [MCP](#-mcp-server) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
 🌐 [繁體中文](docs/README.zh-TW.md) · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [한국어](docs/README.ko.md)
 
@@ -202,6 +202,29 @@ httpx.post("http://localhost:8019/memories/add",
 
 ---
 
+## 🔌 MCP Server
+
+R-Mem works as an MCP server — give Claude Code or Cursor long-term memory with one command:
+
+```bash
+# Claude Code
+claude mcp add rustmem -- /path/to/rustmem mcp
+
+# Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "rustmem": {
+      "command": "/path/to/rustmem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**7 tools available:** `add_memory`, `search_memory`, `list_memories`, `get_memory`, `delete_memory`, `get_graph`, `reset_memories`
+
+---
+
 ## 🏗️ Architecture
 
 ```
@@ -209,6 +232,7 @@ src/
 ├── main.rs          CLI entry point (clap)
 ├── config.rs        TOML + env var config
 ├── server.rs        REST API (axum)
+├── mcp.rs           MCP server (rmcp) — 7 tools over stdio
 ├── memory.rs        Core orchestrator — 3-tier memory pipeline
 ├── extract.rs       LLM prompts: fact / entity / relation extraction
 ├── embedding.rs     OpenAI-compatible embedding client
@@ -216,7 +240,7 @@ src/
 └── graph.rs         SQLite graph store (soft-delete, multi-value)
 ```
 
-**8 files. 1,748 lines. Zero external services.**
+**9 files. Zero external services.**
 
 ---
 
@@ -224,7 +248,7 @@ src/
 
 | Status | Feature | Description |
 |---|---|---|
-| 🔲 | **MCP Server** | Expose memory as MCP tools for Claude / Cursor |
+| ✅ | **MCP Server** | `rustmem mcp` — 7 tools over stdio for Claude Code / Cursor |
 | 🔲 | **Batch Import** | Load existing mem0 exports |
 | 🔲 | **Multi-modal** | Image / audio memory support |
 | 🔲 | **Agent SDK** | Rust crate for direct embedding (no HTTP) |

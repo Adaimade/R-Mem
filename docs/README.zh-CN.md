@@ -11,7 +11,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 
-[快速开始](#-快速开始) · [工作原理](#-工作原理) · [使用方式](#-使用方式) · [架构](#️-架构) · [路线图](#️-路线图)
+[快速开始](#-快速开始) · [工作原理](#-工作原理) · [使用方式](#-使用方式) · [MCP](#-mcp-server) · [架构](#️-架构) · [路线图](#️-路线图)
 
 🌐 [English](../README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -202,6 +202,29 @@ httpx.post("http://localhost:8019/memories/add",
 
 ---
 
+## 🔌 MCP Server
+
+R-Mem 可作为 MCP server — 一行命令即可让 Claude Code 或 Cursor 拥有长期记忆：
+
+```bash
+# Claude Code
+claude mcp add rustmem -- /path/to/rustmem mcp
+
+# Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "rustmem": {
+      "command": "/path/to/rustmem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**7 个 tools：** `add_memory`、`search_memory`、`list_memories`、`get_memory`、`delete_memory`、`get_graph`、`reset_memories`
+
+---
+
 ## 🏗️ 架构
 
 ```
@@ -209,6 +232,7 @@ src/
 ├── main.rs          CLI 入口（clap）
 ├── config.rs        TOML + 环境变量配置
 ├── server.rs        REST API（axum）
+├── mcp.rs           MCP server（rmcp）— 7 个 tools 走 stdio
 ├── memory.rs        核心协调器 — 三层记忆管线
 ├── extract.rs       LLM prompts：事实/实体/关系提取
 ├── embedding.rs     OpenAI 兼容 embedding 客户端
@@ -216,7 +240,7 @@ src/
 └── graph.rs         SQLite graph store（soft-delete、多值关系）
 ```
 
-**8 个文件。1,748 行。零外部服务。**
+**9 个文件。1,748 行。零外部服务。**
 
 ---
 
@@ -224,7 +248,7 @@ src/
 
 | 状态 | 功能 | 说明 |
 |---|---|---|
-| 🔲 | **MCP Server** | 将记忆作为 MCP tools 提供给 Claude / Cursor |
+| ✅ | **MCP Server** | `rustmem mcp` — 7 个 tools 走 stdio，支持 Claude Code / Cursor |
 | 🔲 | **批量导入** | 加载现有 mem0 导出数据 |
 | 🔲 | **多模态** | 图片/音频记忆支持 |
 | 🔲 | **Agent SDK** | Rust crate 直接嵌入（无需 HTTP） |
