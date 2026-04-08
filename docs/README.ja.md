@@ -26,15 +26,15 @@
 
 mem0 は優れた設計のメモリシステムであり、豊富な plugin エコシステムを持っています。R-Mem はより狭い問いを立てています：*コアのメモリロジックだけを Rust で書き直し、完全に SQLite をバックエンドにしたらどうなるか？*
 
-結果は同じ三層アーキテクチャ — **vector memory**、**graph memory**、**history** — を **1,748 行の Rust** で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
+結果は同じ三層アーキテクチャ — **vector memory**、**graph memory**、**history** — を **2,262 行の Rust** で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
 
 R-Mem は [RustClaw](https://github.com/Adaimade/RustClaw) から生まれました — 私たちのミニマリスト Rust AI agent フレームワークです。RustClaw にはその哲学に合ったメモリレイヤーが必要でした：シングルバイナリ、外部サービスゼロ。そこで mem0 のアーキテクチャを研究し、Rust で再構築しました。
 
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
-<tr><td>📦 バイナリ</td><td>3.2 MB 静的リンク</td><td>Python + pip（豊富なエコシステム）</td></tr>
+<tr><td>📦 バイナリ</td><td>3.5 MB 静的リンク</td><td>Python + pip（豊富なエコシステム）</td></tr>
 <tr><td>💾 アイドル RSS</td><td>&lt; 10 MB</td><td>200 MB+（より多くの機能をロード）</td></tr>
-<tr><td>📝 コード</td><td>1,748 行</td><td>~91,500 行（26+ 種の store driver）</td></tr>
+<tr><td>📝 コード</td><td>2,262 行</td><td>~91,500 行（26+ 種の store driver）</td></tr>
 <tr><td>🔍 Vector</td><td>SQLite のみ</td><td>Qdrant、Chroma、Pinecone…</td></tr>
 <tr><td>🕸️ Graph</td><td>SQLite のみ</td><td>Neo4j / Memgraph</td></tr>
 <tr><td>🤖 LLM</td><td>任意の OpenAI 互換エンドポイント（Ollama）</td><td>OpenAI、Anthropic など</td></tr>
@@ -92,7 +92,7 @@ Input text
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
 cargo build --release
-# → target/release/rustmem（3.2 MB）
+# → target/release/rustmem（3.5 MB）
 ```
 
 ### 設定
@@ -240,7 +240,7 @@ src/
 └── graph.rs         SQLite graph store（soft-delete、多値関係）
 ```
 
-**9 ファイル。1,748 行。外部サービスゼロ。**
+**9 ファイル。2,262 行。外部サービスゼロ。**
 
 ---
 

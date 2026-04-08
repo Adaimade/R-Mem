@@ -26,15 +26,15 @@
 
 mem0 is a well-designed memory system with a rich plugin ecosystem. R-Mem asks a narrower question: *what if we rewrite just the core memory logic in Rust, backed entirely by SQLite?*
 
-The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — in **1,748 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
+The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — in **2,262 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
 
 R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our minimalist Rust AI agent framework. RustClaw needed a memory layer that matched its philosophy: single binary, zero external services. So we studied mem0's architecture and rebuilt it in Rust.
 
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
-<tr><td>📦 Binary</td><td>3.2 MB static</td><td>Python + pip (rich ecosystem)</td></tr>
+<tr><td>📦 Binary</td><td>3.5 MB static</td><td>Python + pip (rich ecosystem)</td></tr>
 <tr><td>💾 Idle RSS</td><td>&lt; 10 MB</td><td>200 MB+ (more features loaded)</td></tr>
-<tr><td>📝 Code</td><td>1,748 lines</td><td>~91,500 lines (26+ store drivers)</td></tr>
+<tr><td>📝 Code</td><td>2,262 lines</td><td>~91,500 lines (26+ store drivers)</td></tr>
 <tr><td>🔍 Vector</td><td>SQLite only</td><td>Qdrant, Chroma, Pinecone, …</td></tr>
 <tr><td>🕸️ Graph</td><td>SQLite only</td><td>Neo4j / Memgraph</td></tr>
 <tr><td>🤖 LLM</td><td>Any OpenAI-compatible (Ollama)</td><td>OpenAI, Anthropic, and more</td></tr>
@@ -92,7 +92,7 @@ Input text
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
 cargo build --release
-# → target/release/rustmem (3.2 MB)
+# → target/release/rustmem (3.5 MB)
 ```
 
 ### Configure
