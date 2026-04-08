@@ -1,77 +1,109 @@
-🌐 [English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+<div align="center">
 
 # R-Mem
 
-**以 Rust 研究 [mem0](https://github.com/mem0ai/mem0) 記憶架構的輕量實作。AI agent 的長期記憶。單一執行檔。不需要 Python。**
+### AI Agent 的長期記憶 — 以 Rust 實作
 
+**以 Rust 研究 [mem0](https://github.com/mem0ai/mem0) 記憶架構的輕量實作。**<br>
+**單一執行檔。SQLite 為後端。不需要 Python。**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
+[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
+
+[快速開始](#-快速開始) · [運作方式](#-運作方式) · [使用方式](#-使用方式) · [架構](#️-架構) · [路線圖](#️-路線圖)
+
+🌐 [English](../README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+
+</div>
+
+> [!NOTE]
 > 本專案以學習為目的，用 Rust 重新實作 [mem0](https://github.com/mem0ai/mem0) 優雅的記憶架構。完全歸功於 mem0 團隊的原始設計。這不是替代品，而是以不同語言對其架構的研究。歡迎一起探討、交流與貢獻！
-
-下表反映的是刻意的取捨 — mem0 更豐富的生態系提供了更多彈性與整合；R-Mem 有意犧牲這些來換取最小化的部署。
-
-|                   | **R-Mem**          | **mem0**                     |
-|-------------------|--------------------|------------------------------|
-| 執行檔 / Runtime  | 3.2 MB 靜態連結     | Python + pip（豐富生態系）     |
-| 閒置記憶體 (RSS)   | < 10 MB            | 200 MB+（載入更多功能）        |
-| 程式碼行數         | 1,748              | ~91,500（支援 26+ 種 store）  |
-| Vector Store      | 僅 SQLite           | Qdrant、Chroma、Pinecone 等   |
-| Graph Store       | 僅 SQLite           | Neo4j / Memgraph             |
-| 依賴               | 編譯時內含          | pip install mem0ai           |
-| LLM 後端          | 任何 OpenAI 相容端點（Ollama） | OpenAI、Anthropic 及更多 |
 
 ---
 
-## 為什麼
+## 為什麼選擇 R-Mem？
 
 mem0 是一個設計精良的記憶系統，擁有豐富的 plugin 生態系。R-Mem 問的是一個更窄的問題：*如果只把核心記憶邏輯用 Rust 重寫，並完全以 SQLite 為後端，會怎樣？*
 
-結果是同樣的三層架構 — vector memory、graph memory、history — 以 1,748 行 Rust 實現。不需要外部服務。一個執行檔。取捨很明確：整合數量遠少於 mem0，但運維開銷趨近於零。
+結果是同樣的三層架構 — **vector memory**、**graph memory**、**history** — 以 **1,748 行 Rust** 實現。不需要外部服務。一個執行檔。取捨很明確：整合數量遠少於 mem0，但運維開銷趨近於零。
 
-使用 Claude Code 建置。
+<table>
+<tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
+<tr><td>📦 執行檔</td><td>3.2 MB 靜態連結</td><td>Python + pip（豐富生態系）</td></tr>
+<tr><td>💾 閒置 RSS</td><td>&lt; 10 MB</td><td>200 MB+（載入更多功能）</td></tr>
+<tr><td>📝 程式碼</td><td>1,748 行</td><td>~91,500 行（26+ 種 store driver）</td></tr>
+<tr><td>🔍 Vector</td><td>僅 SQLite</td><td>Qdrant、Chroma、Pinecone…</td></tr>
+<tr><td>🕸️ Graph</td><td>僅 SQLite</td><td>Neo4j / Memgraph</td></tr>
+<tr><td>🤖 LLM</td><td>任何 OpenAI 相容端點（Ollama）</td><td>OpenAI、Anthropic 及更多</td></tr>
+</table>
+
+> mem0 的數字反映的是它更豐富的生態系 — 更多 store、更多整合、更多彈性。R-Mem 有意犧牲這些來換取最小化的部署。
 
 ---
 
-## 運作方式
+## 🔍 運作方式
 
 ```
 Input text
 │
-├── Vector Memory（長期事實）
-│     ├── LLM 萃取事實 → ["Name is Alice", "Works at Google"]
-│     ├── Embedding → cosine similarity 搜尋（前 5 筆現有記憶）
-│     ├── Integer ID mapping（防止 LLM UUID 幻覺）
-│     ├── LLM 針對每個事實決策：
-│     │     ├── ADD       → 新資訊
-│     │     ├── UPDATE    → 更具體（"likes sports" → "likes tennis"）
-│     │     ├── DELETE    → 矛盾（"likes pizza" vs "hates pizza"）
-│     │     └── NONE      → 重複，跳過
-│     └── 執行 + 寫入歷史
+├─ 📦 Vector Memory ──────────────────────────────────
+│    │
+│    ├─ LLM 萃取事實
+│    │    → ["Name is Alice", "Works at Google"]
+│    │
+│    ├─ Embedding → cosine similarity 搜尋（前 5 筆）
+│    │
+│    ├─ Integer ID mapping
+│    │    （防止 LLM UUID 幻覺）
+│    │
+│    ├─ LLM 針對每個事實決策：
+│    │    ├─ ADD       新資訊
+│    │    ├─ UPDATE    更具體
+│    │    │             "likes sports" → "likes tennis"
+│    │    ├─ DELETE    矛盾
+│    │    │             "likes pizza" → "hates pizza"
+│    │    └─ NONE      重複 — 跳過
+│    │
+│    └─ 執行動作 + 寫入歷史
 │
-└── Graph Memory（實體關係）
-      ├── LLM 萃取實體 + 關係
-      ├── 衝突偵測（soft-delete 舊資料，新增新資料）
-      └── 多值 vs 單值關係處理
+└─ 🕸️ Graph Memory ──────────────────────────────────
+     │
+     ├─ LLM 萃取實體 + 關係
+     ├─ 衝突偵測（soft-delete 舊資料，新增新資料）
+     └─ 多值 vs 單值關係處理
 ```
 
 ---
 
-## 快速開始
+## 🚀 快速開始
 
 ### 前置條件
 
-- Rust 工具鏈（`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`）
-- LLM 後端：[Ollama](https://ollama.com)（本地）或任何 OpenAI 相容端點
+| 需求 | 安裝方式 |
+|---|---|
+| Rust 1.75+ | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| LLM 後端 | [Ollama](https://ollama.com)（本地）或任何 OpenAI 相容 API |
 
-### 建置
+### 建置與執行
 
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
 cargo build --release
-# 執行檔：target/release/rustmem（3.2 MB）
+# → target/release/rustmem（3.2 MB）
 ```
 
 ### 設定
 
-建立 `rustmem.toml`：
+在專案根目錄建立 `rustmem.toml`：
+
+<table>
+<tr>
+<td><strong>Ollama（本地）</strong></td>
+<td><strong>OpenAI</strong></td>
+</tr>
+<tr>
+<td>
 
 ```toml
 [llm]
@@ -85,7 +117,8 @@ base_url = "http://127.0.0.1:11434"
 model = "nomic-embed-text"
 ```
 
-或使用 OpenAI：
+</td>
+<td>
 
 ```toml
 [llm]
@@ -99,55 +132,59 @@ api_key = "sk-..."
 model = "text-embedding-3-small"
 ```
 
+</td>
+</tr>
+</table>
+
 ---
 
-## 使用方式
+## 📖 使用方式
 
 ### CLI
 
 ```bash
+# 新增記憶
 rustmem add -u alice "My name is Alice and I work at Google. I love sushi."
+
+# 語意搜尋
 rustmem search -u alice "What does Alice eat?"
+
+# 列出使用者所有記憶
 rustmem list -u alice
+
+# 顯示圖譜關係
 rustmem graph -u alice
+
+# 啟動 REST API 伺服器
 rustmem server
 ```
 
 ### REST API
 
+先啟動 `rustmem server`，然後：
+
 ```bash
+# ➕ 新增記憶
 curl -X POST http://localhost:8019/memories/add \
   -H 'Content-Type: application/json' \
   -d '{"user_id": "alice", "text": "I moved to Tokyo last month"}'
 
+# 🔍 搜尋
 curl -X POST http://localhost:8019/memories/search \
   -H 'Content-Type: application/json' \
   -d '{"user_id": "alice", "query": "where does she live", "limit": 5}'
 
+# 📋 列出全部
 curl http://localhost:8019/memories?user_id=alice
+
+# 🗑️ 刪除
 curl -X DELETE http://localhost:8019/memories/{id}
+
+# 📜 歷史紀錄
 curl http://localhost:8019/memories/{id}/history
 ```
 
----
-
-## 架構
-
-```
-src/
-├── main.rs        # CLI (clap)
-├── config.rs      # TOML + 環境變數設定
-├── server.rs      # REST API (axum)
-├── memory.rs      # 核心協調器
-├── extract.rs     # LLM prompts：事實/實體/關係萃取
-├── embedding.rs   # OpenAI 相容 embedding 客戶端
-├── store.rs       # SQLite vector store（cosine similarity）
-└── graph.rs       # SQLite graph store（soft-delete、多值關係）
-```
-
----
-
-## 與 AI Agent 整合
+### AI Agent 直接替換
 
 ```python
 # mem0（之前）
@@ -155,7 +192,7 @@ from mem0 import Memory
 m = Memory()
 m.add("Alice loves sushi", user_id="alice")
 
-# R-Mem（之後 — 透過 HTTP 直接替換）
+# R-Mem（之後 — 只需改用 HTTP）
 import httpx
 httpx.post("http://localhost:8019/memories/add",
     json={"user_id": "alice", "text": "Alice loves sushi"})
@@ -163,18 +200,42 @@ httpx.post("http://localhost:8019/memories/add",
 
 ---
 
-## 路線圖
+## 🏗️ 架構
 
-- [ ] MCP server — 將記憶作為 MCP tools 提供給 Claude / Cursor
-- [ ] 批次匯入 — 載入現有 mem0 匯出資料
-- [ ] 多模態 — 圖片/音訊記憶支援
-- [ ] Agent SDK — Rust crate 直接嵌入（不需 HTTP）
-- [ ] Dashboard — 輕量級 web UI 用於記憶檢視
+```
+src/
+├── main.rs          CLI 入口（clap）
+├── config.rs        TOML + 環境變數設定
+├── server.rs        REST API（axum）
+├── memory.rs        核心協調器 — 三層記憶管線
+├── extract.rs       LLM prompts：事實/實體/關係萃取
+├── embedding.rs     OpenAI 相容 embedding 客戶端
+├── store.rs         SQLite vector store（cosine similarity）
+└── graph.rs         SQLite graph store（soft-delete、多值關係）
+```
 
-歡迎社群貢獻。開 issue 或 PR 即可。
+**8 個檔案。1,748 行。零外部服務。**
 
 ---
 
-## 授權條款
+## 🗺️ 路線圖
 
-MIT
+| 狀態 | 功能 | 說明 |
+|---|---|---|
+| 🔲 | **MCP Server** | 將記憶作為 MCP tools 提供給 Claude / Cursor |
+| 🔲 | **批次匯入** | 載入現有 mem0 匯出資料 |
+| 🔲 | **多模態** | 圖片/音訊記憶支援 |
+| 🔲 | **Agent SDK** | Rust crate 直接嵌入（不需 HTTP） |
+| 🔲 | **Dashboard** | 輕量級 web UI 用於記憶檢視 |
+
+歡迎社群貢獻 — 開 issue 或 PR 即可。
+
+---
+
+<div align="center">
+
+**MIT License**
+
+使用 [Claude Code](https://claude.ai) 建置
+
+</div>
