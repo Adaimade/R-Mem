@@ -22,6 +22,20 @@ pub struct SearchResult {
     pub text: String,
     pub score: f32,
     pub user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>, // "active", "archive", or "graph"
+}
+
+/// An archived memory record.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ArchivedRecord {
+    pub id: String,
+    pub user_id: String,
+    pub text: String,
+    pub reason: String,        // "DELETED" or "SUPERSEDED"
+    pub superseded_by: Option<String>,
+    pub archived_at: String,
+    pub original_created_at: String,
 }
 
 /// SQLite-backed vector store with embedded vectors.
@@ -51,7 +65,19 @@ impl MemoryStore {
                  old_text TEXT,
                  new_text TEXT,
                  created_at TEXT DEFAULT (datetime('now'))
-             );",
+             );
+
+             CREATE TABLE IF NOT EXISTS archive (
+                 id TEXT PRIMARY KEY,
+                 user_id TEXT NOT NULL,
+                 text TEXT NOT NULL,
+                 embedding BLOB,
+                 reason TEXT NOT NULL,
+                 superseded_by TEXT,
+                 archived_at TEXT DEFAULT (datetime('now')),
+                 original_created_at TEXT
+             );
+             CREATE INDEX IF NOT EXISTS idx_archive_user ON archive(user_id);",
         )?;
 
         Ok(Self {
@@ -84,7 +110,7 @@ impl MemoryStore {
         Ok(())
     }
 
-    /// Update an existing memory.
+    /// Update an existing memory. The old version is archived.
     pub async fn update(
         &self,
         id: &str,
@@ -93,6 +119,14 @@ impl MemoryStore {
     ) -> Result<()> {
         let db = self.db.lock().await;
         let blob = embedding_to_blob(embedding_vec);
+
+        // Archive the old version before overwriting
+        db.execute(
+            "INSERT OR IGNORE INTO archive (id, user_id, text, embedding, reason, superseded_by, original_created_at)
+             SELECT id || ':' || CAST(RANDOM() AS TEXT), user_id, text, embedding, 'SUPERSEDED', ?1, created_at
+             FROM memories WHERE id = ?2",
+            params![id, id],
+        )?;
 
         let old_text: Option<String> = db
             .query_row("SELECT text FROM memories WHERE id = ?1", [id], |row| {
@@ -114,9 +148,17 @@ impl MemoryStore {
         Ok(())
     }
 
-    /// Delete a memory by ID.
+    /// Delete a memory by ID. The deleted memory is archived.
     pub async fn delete(&self, id: &str) -> Result<()> {
         let db = self.db.lock().await;
+
+        // Archive before deleting
+        db.execute(
+            "INSERT OR IGNORE INTO archive (id, user_id, text, embedding, reason, original_created_at)
+             SELECT id, user_id, text, embedding, 'DELETED', created_at
+             FROM memories WHERE id = ?1",
+            [id],
+        )?;
 
         let old_text: Option<String> = db
             .query_row("SELECT text FROM memories WHERE id = ?1", [id], |row| {
@@ -207,6 +249,7 @@ impl MemoryStore {
                     text,
                     score,
                     user_id: uid,
+                    source: None,
                 }
             })
             .collect();
@@ -257,7 +300,98 @@ impl MemoryStore {
     pub async fn reset(&self, user_id: &str) -> Result<u64> {
         let db = self.db.lock().await;
         let count = db.execute("DELETE FROM memories WHERE user_id = ?1", [user_id])?;
+        db.execute("DELETE FROM archive WHERE user_id = ?1", [user_id])?;
         Ok(count as u64)
+    }
+
+    // ── Archive ─────────────────────────────────────────────────────
+
+    /// Search archive by vector similarity (fallback when active search is insufficient).
+    pub async fn search_archive(
+        &self,
+        user_id: &str,
+        query_embedding: &[f32],
+        limit: usize,
+    ) -> Result<Vec<SearchResult>> {
+        let db = self.db.lock().await;
+        let mut stmt = db.prepare(
+            "SELECT id, user_id, text, embedding FROM archive WHERE user_id = ?1 AND embedding IS NOT NULL",
+        )?;
+
+        let mut results: Vec<SearchResult> = stmt
+            .query_map([user_id], |row| {
+                let id: String = row.get(0)?;
+                let uid: String = row.get(1)?;
+                let text: String = row.get(2)?;
+                let blob: Vec<u8> = row.get(3)?;
+                Ok((id, uid, text, blob))
+            })?
+            .filter_map(|r| r.ok())
+            .map(|(id, uid, text, blob)| {
+                let emb = blob_to_embedding(&blob);
+                let score = embedding::cosine_similarity(query_embedding, &emb);
+                SearchResult {
+                    id,
+                    text,
+                    score,
+                    user_id: uid,
+                    source: Some("archive".to_string()),
+                }
+            })
+            .collect();
+
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    /// Count archive entries for a user.
+    pub async fn archive_count(&self, user_id: &str) -> Result<usize> {
+        let db = self.db.lock().await;
+        let count: i64 = db.query_row(
+            "SELECT COUNT(*) FROM archive WHERE user_id = ?1",
+            [user_id],
+            |row| row.get(0),
+        )?;
+        Ok(count as usize)
+    }
+
+    /// Get all archived memories for a user.
+    pub async fn get_archive(&self, user_id: &str) -> Result<Vec<ArchivedRecord>> {
+        let db = self.db.lock().await;
+        let mut stmt = db.prepare(
+            "SELECT id, user_id, text, reason, superseded_by, archived_at, original_created_at
+             FROM archive WHERE user_id = ?1 ORDER BY archived_at DESC",
+        )?;
+
+        let rows = stmt
+            .query_map([user_id], |row| {
+                Ok(ArchivedRecord {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    text: row.get(2)?,
+                    reason: row.get(3)?,
+                    superseded_by: row.get(4)?,
+                    archived_at: row.get(5)?,
+                    original_created_at: row.get(6)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(rows)
+    }
+
+    /// Delete old archive entries, keeping only the most recent `keep` entries per user.
+    pub async fn compact_archive(&self, user_id: &str, keep: usize) -> Result<usize> {
+        let db = self.db.lock().await;
+        let deleted = db.execute(
+            "DELETE FROM archive WHERE user_id = ?1 AND id NOT IN (
+                SELECT id FROM archive WHERE user_id = ?1 ORDER BY archived_at DESC LIMIT ?2
+            )",
+            params![user_id, keep],
+        )?;
+        Ok(deleted)
     }
 }
 
@@ -356,6 +490,66 @@ mod tests {
         let count = store.reset("alice").await.unwrap();
         assert_eq!(count, 2);
         assert!(store.get_all("alice").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_archives_memory() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.delete("id1").await.unwrap();
+
+        // Active memory gone
+        assert!(store.get("id1").await.unwrap().is_none());
+
+        // But archived
+        let archive = store.get_archive("alice").await.unwrap();
+        assert_eq!(archive.len(), 1);
+        assert_eq!(archive[0].text, "likes sushi");
+        assert_eq!(archive[0].reason, "DELETED");
+    }
+
+    #[tokio::test]
+    async fn update_archives_old_version() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.update("id1", "loves sushi", &emb).await.unwrap();
+
+        // Active has new version
+        let record = store.get("id1").await.unwrap().unwrap();
+        assert_eq!(record.text, "loves sushi");
+
+        // Archive has old version
+        let archive = store.get_archive("alice").await.unwrap();
+        assert_eq!(archive.len(), 1);
+        assert_eq!(archive[0].text, "likes sushi");
+        assert_eq!(archive[0].reason, "SUPERSEDED");
+    }
+
+    #[tokio::test]
+    async fn archive_search_finds_deleted() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        store.add("id1", "alice", "likes sushi", &[1.0, 0.0, 0.0]).await.unwrap();
+        store.delete("id1").await.unwrap();
+
+        let query = vec![1.0, 0.0, 0.0];
+        let results = store.search_archive("alice", &query, 5).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].text, "likes sushi");
+        assert_eq!(results[0].source.as_deref(), Some("archive"));
+    }
+
+    #[tokio::test]
+    async fn reset_clears_archive() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "fact 1", &emb).await.unwrap();
+        store.delete("id1").await.unwrap();
+        assert_eq!(store.archive_count("alice").await.unwrap(), 1);
+
+        store.reset("alice").await.unwrap();
+        assert_eq!(store.archive_count("alice").await.unwrap(), 0);
     }
 
     #[tokio::test]

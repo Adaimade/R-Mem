@@ -30,6 +30,12 @@ pub struct MemoryConfig {
     /// Default search limit for API responses (default: 100)
     #[serde(default = "default_api_search_limit")]
     pub api_search_limit: usize,
+    /// Minimum best score from active search before falling back to archive (default: 0.4)
+    #[serde(default = "default_archive_fallback_threshold")]
+    pub archive_fallback_threshold: f32,
+    /// Max archive entries to keep per user before compaction (default: 200)
+    #[serde(default = "default_archive_max_entries")]
+    pub archive_max_entries: usize,
 }
 
 impl Default for MemoryConfig {
@@ -39,6 +45,8 @@ impl Default for MemoryConfig {
             graph_match_score: default_graph_match_score(),
             graph_search_limit: default_graph_search_limit(),
             api_search_limit: default_api_search_limit(),
+            archive_fallback_threshold: default_archive_fallback_threshold(),
+            archive_max_entries: default_archive_max_entries(),
         }
     }
 }
@@ -158,6 +166,12 @@ fn default_graph_search_limit() -> usize {
 }
 fn default_api_search_limit() -> usize {
     100
+}
+fn default_archive_fallback_threshold() -> f32 {
+    0.4
+}
+fn default_archive_max_entries() -> usize {
+    200
 }
 
 impl AppConfig {

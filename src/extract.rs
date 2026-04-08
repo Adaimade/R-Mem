@@ -306,6 +306,7 @@ async fn llm_call(config: &LlmConfig, system: &str, user: &str) -> Result<String
 
     let base = if config.base_url.is_empty() {
         match config.provider.as_str() {
+            "openai" => "https://api.openai.com",
             "anthropic" => "https://api.anthropic.com",
             _ => "http://127.0.0.1:11434",
         }

@@ -167,10 +167,26 @@ impl MemoryManager {
         let query_emb = embedding::embed(&self.config.embedding, query).await?;
         let mut results = self.store.search(user_id, &query_emb, limit).await?;
 
+        // Tag active results
+        for r in &mut results {
+            if r.source.is_none() {
+                r.source = Some("active".to_string());
+            }
+        }
+
+        // Fallback to archive if active results are weak
+        let best_active_score = results.first().map(|r| r.score).unwrap_or(0.0);
+        if best_active_score < self.config.memory.archive_fallback_threshold {
+            let archive_results = self.store.search_archive(user_id, &query_emb, limit).await?;
+            if !archive_results.is_empty() {
+                info!(count = archive_results.len(), "Archive fallback triggered");
+                results.extend(archive_results);
+            }
+        }
+
         // Also search graph for relations
         let relations = self.graph.search_with_limit(user_id, query, self.config.memory.graph_search_limit).await?;
         if !relations.is_empty() {
-            // Append graph results as pseudo search results with high score
             for rel in relations {
                 let text = format!("{} {} {}", rel.source, rel.relation, rel.destination);
                 results.push(SearchResult {
@@ -178,12 +194,14 @@ impl MemoryManager {
                     text,
                     score: self.config.memory.graph_match_score,
                     user_id: user_id.to_string(),
+                    source: Some("graph".to_string()),
                 });
             }
         }
 
-        // Sort by score descending
+        // Sort by score descending, deduplicate by text
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.dedup_by(|a, b| a.text == b.text);
         results.truncate(limit);
 
         Ok(results)
@@ -216,6 +234,22 @@ impl MemoryManager {
 
     pub async fn history(&self, id: &str) -> Result<Vec<serde_json::Value>> {
         self.store.history(id).await
+    }
+
+    /// Get archived memories for a user.
+    pub async fn get_archive(&self, user_id: &str) -> Result<Vec<crate::store::ArchivedRecord>> {
+        self.store.get_archive(user_id).await
+    }
+
+    /// Get archive entry count for a user.
+    pub async fn archive_count(&self, user_id: &str) -> Result<usize> {
+        self.store.archive_count(user_id).await
+    }
+
+    /// Compact archive: keep only the most recent N entries.
+    pub async fn compact_archive(&self, user_id: &str) -> Result<usize> {
+        let max = self.config.memory.archive_max_entries;
+        self.store.compact_archive(user_id, max).await
     }
 
     /// Get all graph relations for a user.

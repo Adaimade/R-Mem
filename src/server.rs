@@ -81,6 +81,7 @@ pub async fn run(config: AppConfig, memory: MemoryManager) -> anyhow::Result<()>
         .route("/memories", get(get_all_memories))
         .route("/memories", delete(reset_memories))
         .route("/graph", get(get_graph))
+        .route("/archive", get(get_archive))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(config.server.listen_addr()).await?;
@@ -239,6 +240,25 @@ async fn reset_memories(
         Ok(count) => Ok(Json(ApiResponse {
             success: true,
             data: format!("deleted {count} memories"),
+        })),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: e.to_string(),
+            }),
+        )),
+    }
+}
+
+async fn get_archive(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<UserQuery>,
+) -> Result<Json<ApiResponse<Vec<crate::store::ArchivedRecord>>>, (StatusCode, Json<ErrorResponse>)> {
+    match state.memory.get_archive(&q.user_id).await {
+        Ok(records) => Ok(Json(ApiResponse {
+            success: true,
+            data: records,
         })),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
