@@ -17,6 +17,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 futures = "0.3"
+rmcp = { version = "0.8", features = ["server", "macros", "transport-io", "schemars"] }
+schemars = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 config = { version = "0.14", default-features = false, features = ["toml"] }
 

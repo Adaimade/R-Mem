@@ -2,6 +2,7 @@ mod config;
 mod embedding;
 mod extract;
 mod graph;
+mod mcp;
 mod memory;
 mod server;
 mod store;
@@ -47,6 +48,8 @@ enum Command {
         #[arg(short, long)]
         user: String,
     },
+    /// Start MCP server over stdio (for Claude Code / Cursor)
+    Mcp,
     /// Reset all memories for a user
     Reset {
         #[arg(short, long)]
@@ -56,17 +59,35 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("rustmem=info".parse()?),
-        )
-        .init();
-
     let cli = Cli::parse();
+
+    // MCP mode: logs MUST go to stderr (stdout is JSON-RPC transport)
+    let is_mcp = matches!(cli.command, Command::Mcp);
+    if is_mcp {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive("rustmem=info".parse()?),
+            )
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive("rustmem=info".parse()?),
+            )
+            .init();
+    }
+
     let cfg = config::AppConfig::load(cli.config.as_deref())?;
 
     match cli.command {
+        Command::Mcp => {
+            let mem = memory::MemoryManager::new(&cfg).await?;
+            mcp::run(mem).await
+        }
         Command::Server => {
             info!("Starting rustmem server on {}", cfg.server.listen_addr());
             let mem = memory::MemoryManager::new(&cfg).await?;
