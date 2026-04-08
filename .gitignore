@@ -1,0 +1,6 @@
+/target
+*.swp
+.DS_Store
+.env
+rustmem.db
+rustmem.toml
