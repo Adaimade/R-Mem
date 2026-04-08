@@ -2,29 +2,31 @@
 
 # R-Mem
 
-**mem0 的 Rust 實作。AI agent 的長期記憶。單一執行檔。不需要 Python。**
+**以 Rust 研究 [mem0](https://github.com/mem0ai/mem0) 記憶架構的輕量實作。AI agent 的長期記憶。單一執行檔。不需要 Python。**
+
+> 本專案以學習為目的，用 Rust 重新實作 [mem0](https://github.com/mem0ai/mem0) 優雅的記憶架構。完全歸功於 mem0 團隊的原始設計。這不是替代品，而是以不同語言對其架構的研究。歡迎一起探討、交流與貢獻！
+
+下表反映的是刻意的取捨 — mem0 更豐富的生態系提供了更多彈性與整合；R-Mem 有意犧牲這些來換取最小化的部署。
 
 |                   | **R-Mem**          | **mem0**                     |
 |-------------------|--------------------|------------------------------|
-| 執行檔 / Runtime  | **3.2 MB** 靜態連結 | 需要 Python + pip            |
-| 閒置記憶體 (RSS)   | **< 10 MB**        | 200 MB+                      |
-| 程式碼行數         | **1,748**          | ~91,500                      |
-| Vector Store      | SQLite（內建）      | Qdrant + 26 種以上            |
-| Graph Store       | SQLite（內建）      | Neo4j / Memgraph             |
+| 執行檔 / Runtime  | 3.2 MB 靜態連結     | Python + pip（豐富生態系）     |
+| 閒置記憶體 (RSS)   | < 10 MB            | 200 MB+（載入更多功能）        |
+| 程式碼行數         | 1,748              | ~91,500（支援 26+ 種 store）  |
+| Vector Store      | 僅 SQLite           | Qdrant、Chroma、Pinecone 等   |
+| Graph Store       | 僅 SQLite           | Neo4j / Memgraph             |
 | 依賴               | 編譯時內含          | pip install mem0ai           |
-| LLM 後端          | 任何 OpenAI 相容端點（Ollama） | 僅 OpenAI / Anthropic |
+| LLM 後端          | 任何 OpenAI 相容端點（Ollama） | OpenAI、Anthropic 及更多 |
 
 ---
 
 ## 為什麼
 
-mem0 很強大。但它有 91,500 行 Python 程式碼、需要執行中的向量資料庫，而且在做任何事之前就會消耗 200MB+ 的記憶體。
+mem0 是一個設計精良的記憶系統，擁有豐富的 plugin 生態系。R-Mem 問的是一個更窄的問題：*如果只把核心記憶邏輯用 Rust 重寫，並完全以 SQLite 為後端，會怎樣？*
 
-R-Mem 是同樣的三層記憶架構 — vector memory、graph memory、history — 只用 1,748 行 Rust 實現。SQLite 同時處理向量和圖儲存。不需要外部服務。不需要 runtime。一個執行檔搞定。
+結果是同樣的三層架構 — vector memory、graph memory、history — 以 1,748 行 Rust 實現。不需要外部服務。一個執行檔。取捨很明確：整合數量遠少於 mem0，但運維開銷趨近於零。
 
-完全使用 Claude Code 建置。
-
-> **注意：** 本專案是一項基於 Rust 寫法重新實作 AI 記憶系統的研究。核心邏輯與架構參考自 [mem0](https://github.com/mem0ai/mem0)。歡迎一起探討、交流與貢獻！
+使用 Claude Code 建置。
 
 ---
 

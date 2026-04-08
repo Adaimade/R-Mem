@@ -2,29 +2,31 @@
 
 # R-Mem
 
-**Rust implementation of mem0. Long-term memory for AI agents. Single binary. No Python.**
+**A lightweight Rust study of [mem0](https://github.com/mem0ai/mem0)'s memory architecture. Long-term memory for AI agents. Single binary. No Python.**
+
+> This project reimplements [mem0](https://github.com/mem0ai/mem0)'s elegant memory architecture in Rust as a learning exercise. Full credit to the mem0 team for the original design. This is not a replacement — it's a study of their approach using a different language. Discussions, ideas, and contributions are welcome!
+
+The table below reflects deliberate trade-offs — mem0's richer ecosystem offers far more flexibility and integrations; R-Mem intentionally sacrifices that for minimal footprint.
 
 |                   | **R-Mem**          | **mem0**                     |
 |-------------------|--------------------|------------------------------|
-| Binary / Runtime  | **3.2 MB** static  | requires Python + pip        |
-| Idle Memory (RSS) | **< 10 MB**        | 200 MB+                      |
-| Lines of Code     | **1,748**          | ~91,500                      |
-| Vector Store      | SQLite (built-in)  | Qdrant + 26 others           |
-| Graph Store       | SQLite (built-in)  | Neo4j / Memgraph             |
-| Dependencies      | Compiled in        | pip install mem0ai           |
-| LLM Backend       | Any OpenAI-compatible (Ollama) | OpenAI / Anthropic only |
+| Binary / Runtime  | 3.2 MB static      | Python + pip (rich ecosystem)|
+| Idle Memory (RSS) | < 10 MB            | 200 MB+ (more features loaded)|
+| Lines of Code     | 1,748              | ~91,500 (supports 26+ stores)|
+| Vector Store      | SQLite only         | Qdrant, Chroma, Pinecone, etc.|
+| Graph Store       | SQLite only         | Neo4j / Memgraph             |
+| Dependencies      | Compiled in         | pip install mem0ai           |
+| LLM Backend       | Any OpenAI-compatible (Ollama) | OpenAI, Anthropic, and more |
 
 ---
 
 ## Why
 
-mem0 is powerful. It's also 91,500 lines of Python, requires a running vector database, and consumes 200MB+ of RAM before it does anything.
+mem0 is a well-designed memory system with a rich plugin ecosystem. R-Mem asks a narrower question: *what if we rewrite just the core memory logic in Rust, backed entirely by SQLite?*
 
-R-Mem is the same three-tier memory architecture — vector memory, graph memory, history — in 1,748 lines of Rust. SQLite handles both vector and graph storage. No external services. No runtime. One binary.
+The result is the same three-tier architecture — vector memory, graph memory, history — in 1,748 lines of Rust. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
 
-Built entirely with Claude Code.
-
-> **Note:** This project is a research study on reimplementing AI memory systems in Rust. The core logic and architecture are based on [mem0](https://github.com/mem0ai/mem0). Discussions, ideas, and contributions are welcome!
+Built with Claude Code.
 
 ---
 

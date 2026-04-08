@@ -2,29 +2,31 @@
 
 # R-Mem
 
-**mem0 の Rust 実装。AI agent のための長期メモリ。シングルバイナリ。Python 不要。**
+**[mem0](https://github.com/mem0ai/mem0) のメモリアーキテクチャを Rust で研究する軽量実装。AI agent のための長期メモリ。シングルバイナリ。Python 不要。**
+
+> 本プロジェクトは学習目的で、[mem0](https://github.com/mem0ai/mem0) の優れたメモリアーキテクチャを Rust で再実装したものです。オリジナルの設計は mem0 チームの功績です。これは代替品ではなく、異なる言語によるアーキテクチャの研究です。ディスカッション、アイデア、コントリビューションを歓迎します！
+
+以下の表は意図的なトレードオフを反映しています — mem0 の豊かなエコシステムはより多くの柔軟性と統合を提供し、R-Mem は最小限のフットプリントのためにそれらを意図的に犠牲にしています。
 
 |                   | **R-Mem**          | **mem0**                     |
 |-------------------|--------------------|------------------------------|
-| バイナリ / Runtime | **3.2 MB** 静的リンク | Python + pip が必要          |
-| アイドルメモリ (RSS) | **< 10 MB**       | 200 MB+                      |
-| コード行数         | **1,748**          | ~91,500                      |
-| Vector Store      | SQLite（組み込み）   | Qdrant + 26 種以上            |
-| Graph Store       | SQLite（組み込み）   | Neo4j / Memgraph             |
+| バイナリ / Runtime | 3.2 MB 静的リンク   | Python + pip（豊富なエコシステム）|
+| アイドルメモリ (RSS) | < 10 MB           | 200 MB+（より多くの機能をロード）|
+| コード行数         | 1,748              | ~91,500（26+ 種の store をサポート）|
+| Vector Store      | SQLite のみ         | Qdrant、Chroma、Pinecone 等   |
+| Graph Store       | SQLite のみ         | Neo4j / Memgraph             |
 | 依存関係           | コンパイル時に内包    | pip install mem0ai           |
-| LLM バックエンド   | 任意の OpenAI 互換エンドポイント（Ollama） | OpenAI / Anthropic のみ |
+| LLM バックエンド   | 任意の OpenAI 互換エンドポイント（Ollama） | OpenAI、Anthropic など |
 
 ---
 
 ## なぜ R-Mem か
 
-mem0 は強力です。しかし 91,500 行の Python コードがあり、稼働中のベクトルデータベースが必要で、何もする前に 200MB+ の RAM を消費します。
+mem0 は優れた設計のメモリシステムであり、豊富な plugin エコシステムを持っています。R-Mem はより狭い問いを立てています：*コアのメモリロジックだけを Rust で書き直し、完全に SQLite をバックエンドにしたらどうなるか？*
 
-R-Mem は同じ三層メモリアーキテクチャ — vector memory、graph memory、history — を 1,748 行の Rust で実現しています。SQLite がベクトルとグラフの両方のストレージを処理します。外部サービス不要。ランタイム不要。バイナリ一つで完結。
+結果は同じ三層アーキテクチャ — vector memory、graph memory、history — を 1,748 行の Rust で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
 
-Claude Code で完全に構築。
-
-> **注意：** 本プロジェクトは、AI メモリシステムを Rust で再実装する研究です。コアロジックとアーキテクチャは [mem0](https://github.com/mem0ai/mem0) を参考にしています。ディスカッション、アイデア、コントリビューションを歓迎します！
+Claude Code で構築。
 
 ---
 
