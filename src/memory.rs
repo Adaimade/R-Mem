@@ -54,13 +54,19 @@ impl MemoryManager {
             return Ok(Vec::new());
         }
 
-        // Step 2: For each fact, find similar existing memories
+        // Step 2: Embed all facts in parallel, then search for similar existing memories
+        let top_k = self.config.memory.search_top_k;
+        let embed_futures: Vec<_> = facts
+            .iter()
+            .map(|f| embedding::embed(&self.config.embedding, f))
+            .collect();
+        let fact_embeddings = futures::future::try_join_all(embed_futures).await?;
+
         let mut all_existing: Vec<(String, String)> = Vec::new(); // (id, text)
         let mut seen_ids = std::collections::HashSet::new();
 
-        for fact in &facts {
-            let query_emb = embedding::embed(&self.config.embedding, fact).await?;
-            let similar = self.store.search(user_id, &query_emb, 5).await?;
+        for query_emb in &fact_embeddings {
+            let similar = self.store.search(user_id, query_emb, top_k).await?;
             for s in similar {
                 if seen_ids.insert(s.id.clone()) {
                     all_existing.push((s.id, s.text));
@@ -162,7 +168,7 @@ impl MemoryManager {
         let mut results = self.store.search(user_id, &query_emb, limit).await?;
 
         // Also search graph for relations
-        let relations = self.graph.search(user_id, query).await?;
+        let relations = self.graph.search_with_limit(user_id, query, self.config.memory.graph_search_limit).await?;
         if !relations.is_empty() {
             // Append graph results as pseudo search results with high score
             for rel in relations {
@@ -170,7 +176,7 @@ impl MemoryManager {
                 results.push(SearchResult {
                     id: format!("graph:{}", rel.source),
                     text,
-                    score: 0.9, // Graph matches are highly relevant
+                    score: self.config.memory.graph_match_score,
                     user_id: user_id.to_string(),
                 });
             }
@@ -210,6 +216,11 @@ impl MemoryManager {
 
     pub async fn history(&self, id: &str) -> Result<Vec<serde_json::Value>> {
         self.store.history(id).await
+    }
+
+    /// Get all graph relations for a user.
+    pub async fn get_graph(&self, user_id: &str) -> Result<Vec<crate::graph::Relation>> {
+        self.graph.get_all(user_id).await
     }
 
     // ── Graph Memory ─────────────────────────────────────────────────

@@ -273,3 +273,100 @@ fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fake_embedding(seed: f32) -> Vec<f32> {
+        vec![seed, seed * 0.5, seed * 0.3]
+    }
+
+    #[test]
+    fn embedding_blob_roundtrip() {
+        let emb = vec![1.0_f32, -2.5, 3.14, 0.0];
+        let blob = embedding_to_blob(&emb);
+        let back = blob_to_embedding(&blob);
+        assert_eq!(emb, back);
+    }
+
+    #[tokio::test]
+    async fn store_add_and_get() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+
+        let record = store.get("id1").await.unwrap().unwrap();
+        assert_eq!(record.text, "likes sushi");
+        assert_eq!(record.user_id, "alice");
+    }
+
+    #[tokio::test]
+    async fn store_update_records_history() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.update("id1", "loves sushi", &emb).await.unwrap();
+
+        let record = store.get("id1").await.unwrap().unwrap();
+        assert_eq!(record.text, "loves sushi");
+
+        let hist = store.history("id1").await.unwrap();
+        assert_eq!(hist.len(), 2);
+        assert_eq!(hist[0]["action"], "ADD");
+        assert_eq!(hist[1]["action"], "UPDATE");
+    }
+
+    #[tokio::test]
+    async fn store_delete_removes_record() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.delete("id1").await.unwrap();
+
+        assert!(store.get("id1").await.unwrap().is_none());
+
+        let hist = store.history("id1").await.unwrap();
+        assert_eq!(hist.last().unwrap()["action"], "DELETE");
+    }
+
+    #[tokio::test]
+    async fn store_search_returns_top_k() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        // Add 3 memories with different embeddings
+        store.add("id1", "alice", "likes sushi", &[1.0, 0.0, 0.0]).await.unwrap();
+        store.add("id2", "alice", "likes pizza", &[0.9, 0.1, 0.0]).await.unwrap();
+        store.add("id3", "alice", "works at google", &[0.0, 0.0, 1.0]).await.unwrap();
+
+        let query = vec![1.0, 0.0, 0.0];
+        let results = store.search("alice", &query, 2).await.unwrap();
+
+        assert_eq!(results.len(), 2);
+        // First result should be the most similar (id1)
+        assert_eq!(results[0].id, "id1");
+    }
+
+    #[tokio::test]
+    async fn store_reset_clears_all() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "fact 1", &emb).await.unwrap();
+        store.add("id2", "alice", "fact 2", &emb).await.unwrap();
+
+        let count = store.reset("alice").await.unwrap();
+        assert_eq!(count, 2);
+        assert!(store.get_all("alice").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn store_user_isolation() {
+        let store = MemoryStore::open(":memory:").unwrap();
+        let emb = fake_embedding(1.0);
+        store.add("id1", "alice", "alice fact", &emb).await.unwrap();
+        store.add("id2", "bob", "bob fact", &emb).await.unwrap();
+
+        let alice = store.get_all("alice").await.unwrap();
+        assert_eq!(alice.len(), 1);
+        assert_eq!(alice[0].text, "alice fact");
+    }
+}

@@ -78,3 +78,53 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 
     dot / (mag_a * mag_b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identical_vectors_have_similarity_one() {
+        let v = vec![1.0, 2.0, 3.0];
+        let score = cosine_similarity(&v, &v);
+        assert!((score - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn orthogonal_vectors_have_similarity_zero() {
+        let a = vec![1.0, 0.0];
+        let b = vec![0.0, 1.0];
+        let score = cosine_similarity(&a, &b);
+        assert!(score.abs() < 1e-6);
+    }
+
+    #[test]
+    fn opposite_vectors_have_negative_similarity() {
+        let a = vec![1.0, 0.0];
+        let b = vec![-1.0, 0.0];
+        let score = cosine_similarity(&a, &b);
+        assert!((score - (-1.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn empty_vectors_return_zero() {
+        let score = cosine_similarity(&[], &[]);
+        assert_eq!(score, 0.0);
+    }
+
+    #[test]
+    fn mismatched_lengths_return_zero() {
+        let a = vec![1.0, 2.0];
+        let b = vec![1.0, 2.0, 3.0];
+        let score = cosine_similarity(&a, &b);
+        assert_eq!(score, 0.0);
+    }
+
+    #[test]
+    fn zero_vector_returns_zero() {
+        let a = vec![0.0, 0.0, 0.0];
+        let b = vec![1.0, 2.0, 3.0];
+        assert_eq!(cosine_similarity(&a, &b), 0.0);
+        assert_eq!(cosine_similarity(&b, &a), 0.0);
+    }
+}

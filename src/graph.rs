@@ -114,6 +114,10 @@ impl GraphStore {
 
     /// Search for relations involving entities mentioned in the query.
     pub async fn search(&self, user_id: &str, query: &str) -> Result<Vec<Relation>> {
+        self.search_with_limit(user_id, query, 20).await
+    }
+
+    pub async fn search_with_limit(&self, user_id: &str, query: &str, limit: usize) -> Result<Vec<Relation>> {
         let db = self.db.lock().await;
 
         // Tokenize query into words for matching
@@ -147,7 +151,7 @@ impl GraphStore {
              FROM relations
              WHERE user_id = ?1 AND valid = 1 AND ({where_clause})
              ORDER BY mentions DESC
-             LIMIT 20"
+             LIMIT {limit}"
         );
 
         let mut stmt = db.prepare(&sql)?;
@@ -218,4 +222,96 @@ fn is_multi_value_relation(relation: &str) -> bool {
         "friends_with", "colleague_of",
     ];
     multi.iter().any(|m| lower.contains(m))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn test_graph() -> GraphStore {
+        GraphStore::open(":memory:").unwrap()
+    }
+
+    #[tokio::test]
+    async fn add_and_get_relation() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "works_at", "Google").await.unwrap();
+
+        let rels = g.get_all("alice").await.unwrap();
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].source, "Alice");
+        assert_eq!(rels[0].relation, "works_at");
+        assert_eq!(rels[0].destination, "Google");
+    }
+
+    #[tokio::test]
+    async fn duplicate_increments_mentions() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "likes", "sushi").await.unwrap();
+        g.add_relation("alice", "Alice", "likes", "sushi").await.unwrap();
+
+        let rels = g.get_all("alice").await.unwrap();
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].mentions, 2);
+    }
+
+    #[tokio::test]
+    async fn single_value_soft_deletes_old() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "lives_in", "Tokyo").await.unwrap();
+        g.add_relation("alice", "Alice", "lives_in", "London").await.unwrap();
+
+        let rels = g.get_all("alice").await.unwrap(); // only valid=1
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].destination, "London");
+    }
+
+    #[tokio::test]
+    async fn multi_value_keeps_both() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "likes", "sushi").await.unwrap();
+        g.add_relation("alice", "Alice", "likes", "pizza").await.unwrap();
+
+        let rels = g.get_all("alice").await.unwrap();
+        assert_eq!(rels.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn search_finds_by_keyword() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "works_at", "Google").await.unwrap();
+        g.add_relation("alice", "Alice", "likes", "sushi").await.unwrap();
+
+        let results = g.search("alice", "Google").await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].destination, "Google");
+    }
+
+    #[tokio::test]
+    async fn reset_clears_all() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "likes", "sushi").await.unwrap();
+        g.reset("alice").await.unwrap();
+        assert!(g.get_all("alice").await.unwrap().is_empty());
+    }
+
+    #[test]
+    fn multi_value_detection() {
+        assert!(is_multi_value_relation("likes"));
+        assert!(is_multi_value_relation("LOVES"));
+        assert!(!is_multi_value_relation("lives_in"));
+        assert!(!is_multi_value_relation("works_at"));
+        assert!(!is_multi_value_relation("born_in"));
+    }
+
+    #[tokio::test]
+    async fn user_isolation() {
+        let g = test_graph().await;
+        g.add_relation("alice", "Alice", "likes", "sushi").await.unwrap();
+        g.add_relation("bob", "Bob", "likes", "pizza").await.unwrap();
+
+        let alice_rels = g.get_all("alice").await.unwrap();
+        assert_eq!(alice_rels.len(), 1);
+        assert_eq!(alice_rels[0].source, "Alice");
+    }
 }

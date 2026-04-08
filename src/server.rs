@@ -56,7 +56,13 @@ struct ErrorResponse {
 }
 
 fn default_limit() -> usize {
+    // Note: this is the serde default; runtime default comes from config.memory.api_search_limit
     100
+}
+
+#[derive(Serialize)]
+struct GraphResponse {
+    relations: Vec<crate::graph::Relation>,
 }
 
 // ── Routes ───────────────────────────────────────────────────────────
@@ -74,6 +80,7 @@ pub async fn run(config: AppConfig, memory: MemoryManager) -> anyhow::Result<()>
         .route("/memories/{id}/history", get(memory_history))
         .route("/memories", get(get_all_memories))
         .route("/memories", delete(reset_memories))
+        .route("/graph", get(get_graph))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(config.server.listen_addr()).await?;
@@ -232,6 +239,25 @@ async fn reset_memories(
         Ok(count) => Ok(Json(ApiResponse {
             success: true,
             data: format!("deleted {count} memories"),
+        })),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: e.to_string(),
+            }),
+        )),
+    }
+}
+
+async fn get_graph(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<UserQuery>,
+) -> Result<Json<ApiResponse<GraphResponse>>, (StatusCode, Json<ErrorResponse>)> {
+    match state.memory.get_graph(&q.user_id).await {
+        Ok(relations) => Ok(Json(ApiResponse {
+            success: true,
+            data: GraphResponse { relations },
         })),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,

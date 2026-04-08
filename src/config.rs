@@ -12,6 +12,35 @@ pub struct AppConfig {
     pub embedding: EmbeddingConfig,
     #[serde(default)]
     pub store: StoreConfig,
+    #[serde(default)]
+    pub memory: MemoryConfig,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MemoryConfig {
+    /// Number of similar memories to retrieve for dedup (default: 5)
+    #[serde(default = "default_search_top_k")]
+    pub search_top_k: usize,
+    /// Score assigned to graph matches in combined search (default: 0.9)
+    #[serde(default = "default_graph_match_score")]
+    pub graph_match_score: f32,
+    /// Max relations returned from graph search (default: 20)
+    #[serde(default = "default_graph_search_limit")]
+    pub graph_search_limit: usize,
+    /// Default search limit for API responses (default: 100)
+    #[serde(default = "default_api_search_limit")]
+    pub api_search_limit: usize,
+}
+
+impl Default for MemoryConfig {
+    fn default() -> Self {
+        Self {
+            search_top_k: default_search_top_k(),
+            graph_match_score: default_graph_match_score(),
+            graph_search_limit: default_graph_search_limit(),
+            api_search_limit: default_api_search_limit(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -117,6 +146,18 @@ fn default_dimensions() -> usize {
 }
 fn default_db_path() -> String {
     "rustmem.db".to_string()
+}
+fn default_search_top_k() -> usize {
+    5
+}
+fn default_graph_match_score() -> f32 {
+    0.9
+}
+fn default_graph_search_limit() -> usize {
+    20
+}
+fn default_api_search_limit() -> usize {
+    100
 }
 
 impl AppConfig {
