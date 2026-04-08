@@ -28,6 +28,8 @@ mem0 是一個設計精良的記憶系統，擁有豐富的 plugin 生態系。R
 
 結果是同樣的三層架構 — **vector memory**、**graph memory**、**history** — 以 **1,748 行 Rust** 實現。不需要外部服務。一個執行檔。取捨很明確：整合數量遠少於 mem0，但運維開銷趨近於零。
 
+R-Mem 誕生自 [RustClaw](https://github.com/Adaimade/RustClaw) — 我們極簡風格的 Rust AI agent 框架。RustClaw 需要一個符合其理念的記憶層：單一執行檔、零外部服務。因此我們研究了 mem0 的架構，並以 Rust 重新實作。
+
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
 <tr><td>📦 執行檔</td><td>3.2 MB 靜態連結</td><td>Python + pip（豐富生態系）</td></tr>

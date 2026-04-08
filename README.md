@@ -28,6 +28,8 @@ mem0 is a well-designed memory system with a rich plugin ecosystem. R-Mem asks a
 
 The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — in **1,748 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
 
+R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our minimalist Rust AI agent framework. RustClaw needed a memory layer that matched its philosophy: single binary, zero external services. So we studied mem0's architecture and rebuilt it in Rust.
+
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
 <tr><td>📦 Binary</td><td>3.2 MB static</td><td>Python + pip (rich ecosystem)</td></tr>

@@ -28,6 +28,8 @@ mem0는 잘 설계된 메모리 시스템으로 풍부한 plugin 에코시스템
 
 결과는 동일한 3계층 아키텍처 — **vector memory**, **graph memory**, **history** — 를 **1,748줄의 Rust**로 구현. 외부 서비스 불필요. 바이너리 하나. 트레이드오프는 명확: 통합 수는 mem0보다 훨씬 적지만, 운영 오버헤드는 거의 제로.
 
+R-Mem은 [RustClaw](https://github.com/Adaimade/RustClaw)에서 탄생했습니다 — 우리의 미니멀리스트 Rust AI agent 프레임워크입니다. RustClaw에는 그 철학에 맞는 메모리 레이어가 필요했습니다: 단일 바이너리, 외부 서비스 제로. 그래서 mem0의 아키텍처를 연구하고 Rust로 재구축했습니다.
+
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
 <tr><td>📦 바이너리</td><td>3.2 MB 정적 링크</td><td>Python + pip (풍부한 에코시스템)</td></tr>
