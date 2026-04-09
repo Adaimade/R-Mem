@@ -16,7 +16,7 @@ Extract these types of information:
 6. Professional Details (job titles, work habits, career goals)
 7. Miscellaneous (favorite books, movies, brands)
 
-IMPORTANT: Extract ONLY from user messages. Do NOT include information from system or assistant messages. Do NOT include greetings or generic statements.
+IMPORTANT: Extract from BOTH user and assistant messages. Information the assistant provided to the user (recommendations, answers, facts shared) is also worth storing. Do NOT include greetings or generic statements.
 
 Return a JSON array of strings, each being one distinct fact.
 If no facts can be extracted, return: []

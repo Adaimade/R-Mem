@@ -24,6 +24,8 @@ pub struct SearchResult {
     pub user_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>, // "active", "archive", or "graph"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
 }
 
 /// An archived memory record.
@@ -253,7 +255,7 @@ impl MemoryStore {
     ) -> Result<Vec<SearchResult>> {
         let db = self.db.lock().await;
         let mut stmt = db.prepare(
-            "SELECT id, user_id, text, embedding FROM memories WHERE user_id = ?1",
+            "SELECT id, user_id, text, embedding, created_at FROM memories WHERE user_id = ?1",
         )?;
 
         let mut results: Vec<SearchResult> = stmt
@@ -262,10 +264,11 @@ impl MemoryStore {
                 let uid: String = row.get(1)?;
                 let text: String = row.get(2)?;
                 let blob: Vec<u8> = row.get(3)?;
-                Ok((id, uid, text, blob))
+                let created_at: String = row.get(4)?;
+                Ok((id, uid, text, blob, created_at))
             })?
             .filter_map(|r| r.ok())
-            .map(|(id, uid, text, blob)| {
+            .map(|(id, uid, text, blob, created_at)| {
                 let emb = blob_to_embedding(&blob);
                 let score = embedding::cosine_similarity(query_embedding, &emb);
                 SearchResult {
@@ -274,6 +277,7 @@ impl MemoryStore {
                     score,
                     user_id: uid,
                     source: None,
+                    created_at: Some(created_at),
                 }
             })
             .collect();
@@ -387,6 +391,7 @@ impl MemoryStore {
                     score,
                     user_id: uid,
                     source: Some("archive".to_string()),
+                    created_at: None,
                 }
             })
             .collect();

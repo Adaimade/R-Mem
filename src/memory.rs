@@ -195,6 +195,7 @@ impl MemoryManager {
                     score: self.config.memory.graph_match_score,
                     user_id: user_id.to_string(),
                     source: Some("graph".to_string()),
+                    created_at: None,
                 });
             }
         }
