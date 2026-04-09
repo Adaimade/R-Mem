@@ -97,7 +97,13 @@ Input text
 | Rust 1.75+ | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | LLM backend | [Ollama](https://ollama.com), [OpenAI](https://platform.openai.com), or [Anthropic](https://console.anthropic.com) |
 
-### Build & Run
+### Install
+
+```bash
+cargo install rustmem
+```
+
+Or build from source:
 
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
