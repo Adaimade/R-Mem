@@ -82,7 +82,7 @@ impl RMemMcpServer {
         &self,
         Parameters(params): Parameters<SearchMemoryParams>,
     ) -> Result<CallToolResult, McpError> {
-        let limit = params.limit.unwrap_or(10);
+        let limit = params.limit.unwrap_or(20).min(1000);
         let results = self.memory.search(&params.user_id, &params.query, limit).await.map_err(mcp_err)?;
         Ok(CallToolResult::success(vec![Content::text(to_json(&results)?)]))
     }

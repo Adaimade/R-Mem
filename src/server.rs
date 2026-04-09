@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{DefaultBodyLimit, Path, Query, State},
     http::StatusCode,
     response::Json,
     routing::{delete, get, post, put},
@@ -56,8 +56,7 @@ struct ErrorResponse {
 }
 
 fn default_limit() -> usize {
-    // Note: this is the serde default; runtime default comes from config.memory.api_search_limit
-    100
+    20
 }
 
 #[derive(Serialize)]
@@ -82,6 +81,7 @@ pub async fn run(config: AppConfig, memory: MemoryManager) -> anyhow::Result<()>
         .route("/memories", delete(reset_memories))
         .route("/graph", get(get_graph))
         .route("/archive", get(get_archive))
+        .layer(DefaultBodyLimit::max(65536)) // 64KB max request body
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(config.server.listen_addr()).await?;
@@ -99,6 +99,15 @@ async fn add_memory(
     State(state): State<Arc<AppState>>,
     Json(req): Json<AddRequest>,
 ) -> Result<Json<ApiResponse<Vec<crate::memory::AddResult>>>, (StatusCode, Json<ErrorResponse>)> {
+    if req.text.len() > 65536 || req.user_id.len() > 256 || req.user_id.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                success: false,
+                error: "text must be <= 64KB and user_id must be 1-256 chars".to_string(),
+            }),
+        ));
+    }
     match state.memory.add(&req.user_id, &req.text).await {
         Ok(results) => Ok(Json(ApiResponse {
             success: true,
@@ -119,7 +128,8 @@ async fn search_memories(
     Json(req): Json<SearchRequest>,
 ) -> Result<Json<ApiResponse<Vec<crate::store::SearchResult>>>, (StatusCode, Json<ErrorResponse>)>
 {
-    match state.memory.search(&req.user_id, &req.query, req.limit).await {
+    let limit = req.limit.min(1000); // clamp to reasonable max
+    match state.memory.search(&req.user_id, &req.query, limit).await {
         Ok(results) => Ok(Json(ApiResponse {
             success: true,
             data: results,

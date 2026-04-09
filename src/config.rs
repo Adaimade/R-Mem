@@ -195,7 +195,10 @@ impl AppConfig {
         }
 
         let settings = builder.build()?;
-        let cfg: AppConfig = settings.try_deserialize().unwrap_or_default();
+        let cfg: AppConfig = settings.try_deserialize().unwrap_or_else(|e| {
+            tracing::warn!(%e, "Config deserialization failed, using defaults");
+            AppConfig::default()
+        });
         Ok(cfg)
     }
 }

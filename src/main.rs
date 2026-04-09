@@ -128,8 +128,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Graph { user } => {
             let mem = memory::MemoryManager::new(&cfg).await?;
-            let g = graph::GraphStore::open(&cfg.store.db_path)?;
-            let relations = g.get_all(&user).await?;
+            let relations = mem.get_graph(&user).await?;
             if relations.is_empty() {
                 println!("No graph relations for user '{user}'.");
             }

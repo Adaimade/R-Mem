@@ -51,6 +51,7 @@ impl MemoryStore {
 
         // WAL mode: allows concurrent reads while writing
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS memories (
@@ -118,10 +119,12 @@ impl MemoryStore {
         )?;
 
         // Update FTS index
-        db.execute(
+        if let Err(e) = db.execute(
             "INSERT INTO memories_fts(rowid, text) SELECT rowid, text FROM memories WHERE id = ?1",
             [id],
-        ).ok(); // non-fatal if FTS fails
+        ) {
+            tracing::warn!(%e, "FTS5 index update failed for add");
+        }
 
         Ok(())
     }
@@ -137,11 +140,12 @@ impl MemoryStore {
         let blob = embedding_to_blob(embedding_vec);
 
         // Archive the old version before overwriting
+        let archive_id = format!("{}:superseded:{}", id, uuid::Uuid::new_v4());
         db.execute(
             "INSERT OR IGNORE INTO archive (id, user_id, text, embedding, reason, superseded_by, original_created_at)
-             SELECT id || ':' || CAST(RANDOM() AS TEXT), user_id, text, embedding, 'SUPERSEDED', ?1, created_at
-             FROM memories WHERE id = ?2",
-            params![id, id],
+             SELECT ?1, user_id, text, embedding, 'SUPERSEDED', ?2, created_at
+             FROM memories WHERE id = ?3",
+            params![archive_id, id, id],
         )?;
 
         let old_text: Option<String> = db
@@ -162,14 +166,18 @@ impl MemoryStore {
         )?;
 
         // Rebuild FTS for this row
-        db.execute(
+        if let Err(e) = db.execute(
             "INSERT INTO memories_fts(memories_fts, rowid, text) VALUES('delete', (SELECT rowid FROM memories WHERE id = ?1), ?2)",
             params![id, old_text],
-        ).ok();
-        db.execute(
+        ) {
+            tracing::warn!(%e, "FTS5 delete failed for update");
+        }
+        if let Err(e) = db.execute(
             "INSERT INTO memories_fts(rowid, text) SELECT rowid, text FROM memories WHERE id = ?1",
             [id],
-        ).ok();
+        ) {
+            tracing::warn!(%e, "FTS5 insert failed for update");
+        }
 
         Ok(())
     }
@@ -246,8 +254,7 @@ impl MemoryStore {
         Ok(result)
     }
 
-    /// Two-stage search: FTS5 pre-filter → vector ranking.
-    /// Falls back to brute-force if FTS5 returns no candidates.
+    /// Vector similarity search (brute-force). Use `search_with_fts` for the optimized path.
     pub async fn search(
         &self,
         user_id: &str,
@@ -255,31 +262,10 @@ impl MemoryStore {
         limit: usize,
     ) -> Result<Vec<SearchResult>> {
         let db = self.db.lock().await;
-
-        // Stage 1: Try FTS5 pre-filter to narrow candidates
-        let candidates = self.fts_candidates(&db, user_id, query_embedding, limit * 3);
-
-        // Stage 2: If FTS5 found candidates, vector-rank only those.
-        //          Otherwise, fall back to brute-force over all memories.
-        let mut results = if let Some(candidate_ids) = candidates {
-            self.vector_rank_ids(&db, &candidate_ids, query_embedding)?
-        } else {
-            self.vector_rank_all(&db, user_id, query_embedding)?
-        };
-
+        let mut results = self.vector_rank_all(&db, user_id, query_embedding)?;
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         results.truncate(limit);
-
         Ok(results)
-    }
-
-    /// Try FTS5 to get candidate memory rowids. Returns None if FTS5 fails or returns empty.
-    fn fts_candidates(&self, db: &Connection, user_id: &str, _query_emb: &[f32], limit: usize) -> Option<Vec<i64>> {
-        // Build FTS5 query from the search — we need the original query text.
-        // Since we only have the embedding here, FTS5 pre-filter is triggered
-        // from the higher-level search_with_fts method instead.
-        // This is a placeholder for the rowid-based path.
-        None
     }
 
     /// Vector-rank a specific set of memory IDs.
@@ -561,6 +547,10 @@ fn embedding_to_blob(embedding: &[f32]) -> Vec<u8> {
 }
 
 fn blob_to_embedding(blob: &[u8]) -> Vec<f32> {
+    if blob.len() % 4 != 0 {
+        tracing::warn!(len = blob.len(), "Corrupted embedding blob (not divisible by 4), skipping");
+        return Vec::new();
+    }
     blob.chunks_exact(4)
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect()

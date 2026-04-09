@@ -26,6 +26,7 @@ impl GraphStore {
         let conn = rusqlite::Connection::open(path).context("Failed to open graph DB")?;
 
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS entities (
