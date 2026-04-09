@@ -28,6 +28,10 @@ schemars = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 config = { version = "0.14", default-features = false, features = ["toml"] }
 
+[[bench]]
+name = "store_bench"
+harness = false
+
 [profile.release]
 opt-level = "z"
 lto = true
