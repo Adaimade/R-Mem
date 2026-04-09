@@ -9,6 +9,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
+[![Crates.io](https://img.shields.io/crates/v/rustmem.svg)](https://crates.io/crates/rustmem)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
@@ -27,18 +28,19 @@
 
 mem0 是一个设计精良的记忆系统，拥有丰富的 plugin 生态系统。R-Mem 问的是一个更窄的问题：*如果只把核心记忆逻辑用 Rust 重写，并完全以 SQLite 为后端，会怎样？*
 
-结果是同样的三层架构 — **vector memory**、**graph memory**、**history** — 以 **2,262 行 Rust** 实现。无需外部服务。一个可执行文件。取舍很明确：集成数量远少于 mem0，但运维开销趋近于零。
+结果是同样的三层架构 — **vector memory**、**graph memory**、**history** — 加上**分层 archive** 系统，以 **2,621 行 Rust** 实现。无需外部服务。一个可执行文件。取舍很明确：集成数量远少于 mem0，但运维开销趋近于零。
 
 R-Mem 诞生自 [RustClaw](https://github.com/Adaimade/RustClaw) — 我们极简风格的 Rust AI agent 框架。RustClaw 需要一个符合其理念的记忆层：单一可执行文件、零外部服务。因此我们研究了 mem0 的架构，并以 Rust 重新实现。
 
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
-<tr><td>📦 可执行文件</td><td>3.5 MB 静态链接</td><td>Python + pip（丰富生态系统）</td></tr>
+<tr><td>📦 可执行文件</td><td>3.6 MB 静态链接</td><td>Python + pip（丰富生态系统）</td></tr>
 <tr><td>💾 空闲 RSS</td><td>&lt; 10 MB</td><td>200 MB+（加载更多功能）</td></tr>
-<tr><td>📝 代码</td><td>2,262 行</td><td>~91,500 行（26+ 种 store driver）</td></tr>
-<tr><td>🔍 Vector</td><td>仅 SQLite</td><td>Qdrant、Chroma、Pinecone…</td></tr>
+<tr><td>📝 代码</td><td>2,621 行</td><td>~91,500 行（26+ 种 store driver）</td></tr>
+<tr><td>🔍 Vector</td><td>SQLite + FTS5</td><td>Qdrant、Chroma、Pinecone…</td></tr>
 <tr><td>🕸️ Graph</td><td>仅 SQLite</td><td>Neo4j / Memgraph</td></tr>
-<tr><td>🤖 LLM</td><td>任何 OpenAI 兼容端点（Ollama）</td><td>OpenAI、Anthropic 及更多</td></tr>
+<tr><td>🤖 LLM</td><td>OpenAI、Anthropic、Ollama</td><td>OpenAI、Anthropic 及更多</td></tr>
+<tr><td>🗄️ Archive</td><td>分层记忆 + fallback 搜索</td><td>—</td></tr>
 </table>
 
 > mem0 的数字反映的是它更丰富的生态系统 — 更多 store、更多集成、更多灵活性。R-Mem 有意牺牲这些来换取最小化的部署。
@@ -55,26 +57,33 @@ Input text
 │    ├─ LLM 提取事实
 │    │    → ["Name is Alice", "Works at Google"]
 │    │
-│    ├─ Embedding → cosine similarity 搜索（前 5 条）
+│    ├─ Embedding → cosine similarity 搜索
+│    │    （FTS5 预过滤 + vector 排序）
 │    │
 │    ├─ Integer ID mapping
 │    │    （防止 LLM UUID 幻觉）
 │    │
 │    ├─ LLM 针对每个事实决策：
 │    │    ├─ ADD       新信息
-│    │    ├─ UPDATE    更具体
+│    │    ├─ UPDATE    更具体 → 旧版本归档
 │    │    │             "likes sports" → "likes tennis"
-│    │    ├─ DELETE    矛盾
+│    │    ├─ DELETE    矛盾 → 旧版本归档
 │    │    │             "likes pizza" → "hates pizza"
 │    │    └─ NONE      重复 — 跳过
 │    │
 │    └─ 执行动作 + 写入历史
 │
-└─ 🕸️ Graph Memory ──────────────────────────────────
+├─ 🕸️ Graph Memory ──────────────────────────────────
+│    │
+│    ├─ LLM 提取实体 + 关系
+│    ├─ 冲突检测（soft-delete 旧数据，添加新数据）
+│    └─ 多值 vs 单值关系处理
+│
+└─ 🗄️ Archive ───────────────────────────────────────
      │
-     ├─ LLM 提取实体 + 关系
-     ├─ 冲突检测（soft-delete 旧数据，添加新数据）
-     └─ 多值 vs 单值关系处理
+     ├─ 已删除/被替代的记忆连同 embedding 一起保留
+     ├─ 当活跃结果不足时进行 fallback 搜索
+     └─ Archive 超过阈值时自动压缩
 ```
 
 ---
@@ -86,14 +95,14 @@ Input text
 | 需求 | 安装方式 |
 |---|---|
 | Rust 1.75+ | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| LLM 后端 | [Ollama](https://ollama.com)（本地）或任何 OpenAI 兼容 API |
+| LLM 后端 | [Ollama](https://ollama.com)（本地）、[OpenAI](https://platform.openai.com) 或 [Anthropic](https://console.anthropic.com) |
 
 ### 构建与运行
 
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
 cargo build --release
-# → target/release/rustmem（3.5 MB）
+# → target/release/rustmem（3.6 MB）
 ```
 
 ### 配置
@@ -104,6 +113,7 @@ cargo build --release
 <tr>
 <td><strong>Ollama（本地）</strong></td>
 <td><strong>OpenAI</strong></td>
+<td><strong>Anthropic</strong></td>
 </tr>
 <tr>
 <td>
@@ -136,8 +146,25 @@ model = "text-embedding-3-small"
 ```
 
 </td>
+<td>
+
+```toml
+[llm]
+provider = "anthropic"
+api_key = "sk-ant-..."
+model = "claude-sonnet-4-6"
+
+[embedding]
+provider = "openai"
+api_key = "sk-..."
+model = "text-embedding-3-small"
+```
+
+</td>
 </tr>
 </table>
+
+> **注意：** Anthropic 不提供 embedding 模型，因此 [embedding] 即使 [llm] 使用 Anthropic 也需要用 OpenAI 或 Ollama。
 
 ---
 
@@ -185,6 +212,12 @@ curl -X DELETE http://localhost:8019/memories/{id}
 
 # 📜 历史记录
 curl http://localhost:8019/memories/{id}/history
+
+# 🗄️ 查看归档记忆
+curl http://localhost:8019/archive?user_id=alice
+
+# 🕸️ 查看图谱关系
+curl http://localhost:8019/graph?user_id=alice
 ```
 
 ### AI Agent 直接替换
@@ -234,14 +267,14 @@ src/
 ├── config.rs        TOML + 环境变量配置
 ├── server.rs        REST API（axum）
 ├── mcp.rs           MCP server（rmcp）— 7 个 tools 走 stdio
-├── memory.rs        核心协调器 — 三层记忆管线
-├── extract.rs       LLM prompts：事实/实体/关系提取
+├── memory.rs        核心协调器 — 分层记忆管线
+├── extract.rs       LLM 调用：OpenAI + Anthropic native
 ├── embedding.rs     OpenAI 兼容 embedding 客户端
-├── store.rs         SQLite vector store（cosine similarity）
+├── store.rs         SQLite vector store（WAL + FTS5 + archive）
 └── graph.rs         SQLite graph store（soft-delete、多值关系）
 ```
 
-**9 个文件。2,262 行。零外部服务。**
+**9 个文件。2,621 行。3.6 MB binary。零外部服务。**
 
 ---
 
@@ -250,6 +283,9 @@ src/
 | 状态 | 功能 | 说明 |
 |---|---|---|
 | ✅ | **MCP Server** | `rustmem mcp` — 7 个 tools 走 stdio，支持 Claude Code / Cursor |
+| ✅ | **分层 Archive** | 已删除/更新的记忆保留 + fallback 搜索 |
+| ✅ | **Anthropic Native** | 直接支持 Claude API（无需代理） |
+| ✅ | **FTS5 索引** | 全文预过滤加速搜索 |
 | 🔲 | **批量导入** | 加载现有 mem0 导出数据 |
 | 🔲 | **多模态** | 图片/音频记忆支持 |
 | 🔲 | **Agent SDK** | Rust crate 直接嵌入（无需 HTTP） |
@@ -261,7 +297,7 @@ src/
 
 <div align="center">
 
-**MIT License**
+**MIT License** · v0.2.0
 
 由 [Ad Huang](https://github.com/Adaimade) 使用 [Claude Code](https://claude.ai) 构建
 

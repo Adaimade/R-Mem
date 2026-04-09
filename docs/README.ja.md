@@ -10,6 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
+[![Crates.io](https://img.shields.io/crates/v/rustmem.svg)](https://crates.io/crates/rustmem)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
 [クイックスタート](#-クイックスタート) · [仕組み](#-仕組み) · [使い方](#-使い方) · [MCP](#-mcp-server) · [アーキテクチャ](#️-アーキテクチャ) · [ロードマップ](#️-ロードマップ)
@@ -27,18 +28,19 @@
 
 mem0 は優れた設計のメモリシステムであり、豊富な plugin エコシステムを持っています。R-Mem はより狭い問いを立てています：*コアのメモリロジックだけを Rust で書き直し、完全に SQLite をバックエンドにしたらどうなるか？*
 
-結果は同じ三層アーキテクチャ — **vector memory**、**graph memory**、**history** — を **2,262 行の Rust** で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
+結果は同じ三層アーキテクチャ — **vector memory**、**graph memory**、**history** — と **階層アーカイブ** システムを **2,621 行の Rust** で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
 
 R-Mem は [RustClaw](https://github.com/Adaimade/RustClaw) から生まれました — 私たちのミニマリスト Rust AI agent フレームワークです。RustClaw にはその哲学に合ったメモリレイヤーが必要でした：シングルバイナリ、外部サービスゼロ。そこで mem0 のアーキテクチャを研究し、Rust で再構築しました。
 
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
-<tr><td>📦 バイナリ</td><td>3.5 MB 静的リンク</td><td>Python + pip（豊富なエコシステム）</td></tr>
+<tr><td>📦 バイナリ</td><td>3.6 MB 静的リンク</td><td>Python + pip（豊富なエコシステム）</td></tr>
 <tr><td>💾 アイドル RSS</td><td>&lt; 10 MB</td><td>200 MB+（より多くの機能をロード）</td></tr>
-<tr><td>📝 コード</td><td>2,262 行</td><td>~91,500 行（26+ 種の store driver）</td></tr>
-<tr><td>🔍 Vector</td><td>SQLite のみ</td><td>Qdrant、Chroma、Pinecone…</td></tr>
+<tr><td>📝 コード</td><td>2,621 行</td><td>~91,500 行（26+ 種の store driver）</td></tr>
+<tr><td>🔍 Vector</td><td>SQLite + FTS5</td><td>Qdrant、Chroma、Pinecone…</td></tr>
 <tr><td>🕸️ Graph</td><td>SQLite のみ</td><td>Neo4j / Memgraph</td></tr>
-<tr><td>🤖 LLM</td><td>任意の OpenAI 互換エンドポイント（Ollama）</td><td>OpenAI、Anthropic など</td></tr>
+<tr><td>🤖 LLM</td><td>OpenAI、Anthropic、Ollama</td><td>OpenAI、Anthropic など</td></tr>
+<tr><td>🗄️ Archive</td><td>階層メモリ + fallback 検索</td><td>—</td></tr>
 </table>
 
 > mem0 の数字は豊かなエコシステムを反映しています — より多くの store、より多くの統合、より多くの柔軟性。R-Mem は最小限のフットプリントのためにそれらを意図的にトレードオフしています。
@@ -55,26 +57,31 @@ Input text
 │    ├─ LLM が事実を抽出
 │    │    → ["Name is Alice", "Works at Google"]
 │    │
-│    ├─ Embedding → cosine similarity 検索（上位 5 件）
+│    ├─ Embedding → cosine similarity 検索
+│    │    （FTS5 プリフィルタ + vector ランキング）
 │    │
 │    ├─ Integer ID mapping
 │    │    （LLM の UUID ハルシネーション防止）
 │    │
 │    ├─ LLM が各事実について判定：
 │    │    ├─ ADD       新しい情報
-│    │    ├─ UPDATE    より具体的
-│    │    │             "likes sports" → "likes tennis"
-│    │    ├─ DELETE    矛盾
-│    │    │             "likes pizza" → "hates pizza"
+│    │    ├─ UPDATE    より具体的 → 旧バージョンをアーカイブ
+│    │    ├─ DELETE    矛盾 → 旧バージョンをアーカイブ
 │    │    └─ NONE      重複 — スキップ
 │    │
 │    └─ アクション実行 + 履歴に書き込み
 │
-└─ 🕸️ Graph Memory ──────────────────────────────────
+├─ 🕸️ Graph Memory ──────────────────────────────────
+│    │
+│    ├─ LLM がエンティティ + 関係を抽出
+│    ├─ 競合検出（古いデータを soft-delete、新しいデータを追加）
+│    └─ 多値 vs 単値の関係処理
+│
+└─ 🗄️ Archive ───────────────────────────────────────
      │
-     ├─ LLM がエンティティ + 関係を抽出
-     ├─ 競合検出（古いデータを soft-delete、新しいデータを追加）
-     └─ 多値 vs 単値の関係処理
+     ├─ 削除/更新されたメモリを embedding 付きで保存
+     ├─ アクティブな結果が弱い場合の fallback 検索
+     └─ アーカイブが閾値を超えると自動圧縮
 ```
 
 ---
@@ -86,14 +93,14 @@ Input text
 | 要件 | インストール |
 |---|---|
 | Rust 1.75+ | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| LLM バックエンド | [Ollama](https://ollama.com)（ローカル）または任意の OpenAI 互換 API |
+| LLM バックエンド | [Ollama](https://ollama.com)（ローカル）、[OpenAI](https://platform.openai.com)、または [Anthropic](https://console.anthropic.com) |
 
 ### ビルド & 実行
 
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
 cargo build --release
-# → target/release/rustmem（3.5 MB）
+# → target/release/rustmem（3.6 MB）
 ```
 
 ### 設定
@@ -104,6 +111,7 @@ cargo build --release
 <tr>
 <td><strong>Ollama（ローカル）</strong></td>
 <td><strong>OpenAI</strong></td>
+<td><strong>Anthropic</strong></td>
 </tr>
 <tr>
 <td>
@@ -136,8 +144,25 @@ model = "text-embedding-3-small"
 ```
 
 </td>
+<td>
+
+```toml
+[llm]
+provider = "anthropic"
+api_key = "sk-ant-..."
+model = "claude-sonnet-4-6"
+
+[embedding]
+provider = "openai"
+api_key = "sk-..."
+model = "text-embedding-3-small"
+```
+
+</td>
 </tr>
 </table>
+
+> **注意：** Anthropic は embedding モデルを提供していないため、`[llm]` で Anthropic を使用する場合でも `[embedding]` は OpenAI または Ollama を使用します。
 
 ---
 
@@ -185,6 +210,12 @@ curl -X DELETE http://localhost:8019/memories/{id}
 
 # 📜 履歴
 curl http://localhost:8019/memories/{id}/history
+
+# 🗄️ アーカイブされたメモリを表示
+curl http://localhost:8019/archive?user_id=alice
+
+# 🕸️ グラフ関係を表示
+curl http://localhost:8019/graph?user_id=alice
 ```
 
 ### AI Agent へのドロップイン
@@ -234,14 +265,14 @@ src/
 ├── config.rs        TOML + 環境変数設定
 ├── server.rs        REST API（axum）
 ├── mcp.rs           MCP server（rmcp）— stdio 経由の 7 tools
-├── memory.rs        コアオーケストレータ — 3層メモリパイプライン
-├── extract.rs       LLM prompts：事実/エンティティ/関係抽出
+├── memory.rs        コアオーケストレータ — 階層メモリパイプライン
+├── extract.rs       LLM 呼び出し：OpenAI + Anthropic native
 ├── embedding.rs     OpenAI 互換 embedding クライアント
-├── store.rs         SQLite vector store（cosine similarity）
+├── store.rs         SQLite vector store（WAL + FTS5 + archive）
 └── graph.rs         SQLite graph store（soft-delete、多値関係）
 ```
 
-**9 ファイル。2,262 行。外部サービスゼロ。**
+**9 ファイル。2,621 行。3.6 MB バイナリ。外部サービスゼロ。**
 
 ---
 
@@ -250,6 +281,9 @@ src/
 | ステータス | 機能 | 説明 |
 |---|---|---|
 | ✅ | **MCP Server** | `rustmem mcp` — stdio 経由の 7 tools、Claude Code / Cursor 対応 |
+| ✅ | **階層アーカイブ** | 削除/更新されたメモリを保存 + fallback 検索 |
+| ✅ | **Anthropic Native** | Claude API の直接サポート（プロキシ不要） |
+| ✅ | **FTS5 インデックス** | 全文プリフィルタリングによる高速検索 |
 | 🔲 | **バッチインポート** | 既存の mem0 エクスポートデータを読み込み |
 | 🔲 | **マルチモーダル** | 画像/音声メモリサポート |
 | 🔲 | **Agent SDK** | Rust crate による直接埋め込み（HTTP 不要） |
@@ -261,7 +295,7 @@ src/
 
 <div align="center">
 
-**MIT License**
+**MIT License** · v0.2.0
 
 [Ad Huang](https://github.com/Adaimade) が [Claude Code](https://claude.ai) で構築
 

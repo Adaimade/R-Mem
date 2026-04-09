@@ -9,6 +9,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
+[![Crates.io](https://img.shields.io/crates/v/rustmem.svg)](https://crates.io/crates/rustmem)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
@@ -27,18 +28,19 @@
 
 mem0 is a well-designed memory system with a rich plugin ecosystem. R-Mem asks a narrower question: *what if we rewrite just the core memory logic in Rust, backed entirely by SQLite?*
 
-The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — in **2,262 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
+The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — plus a **tiered archive** system, in **2,621 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
 
 R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our minimalist Rust AI agent framework. RustClaw needed a memory layer that matched its philosophy: single binary, zero external services. So we studied mem0's architecture and rebuilt it in Rust.
 
 <table>
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
-<tr><td>📦 Binary</td><td>3.5 MB static</td><td>Python + pip (rich ecosystem)</td></tr>
+<tr><td>📦 Binary</td><td>3.6 MB static</td><td>Python + pip (rich ecosystem)</td></tr>
 <tr><td>💾 Idle RSS</td><td>&lt; 10 MB</td><td>200 MB+ (more features loaded)</td></tr>
-<tr><td>📝 Code</td><td>2,262 lines</td><td>~91,500 lines (26+ store drivers)</td></tr>
-<tr><td>🔍 Vector</td><td>SQLite only</td><td>Qdrant, Chroma, Pinecone, …</td></tr>
+<tr><td>📝 Code</td><td>2,621 lines</td><td>~91,500 lines (26+ store drivers)</td></tr>
+<tr><td>🔍 Vector</td><td>SQLite + FTS5</td><td>Qdrant, Chroma, Pinecone, …</td></tr>
 <tr><td>🕸️ Graph</td><td>SQLite only</td><td>Neo4j / Memgraph</td></tr>
-<tr><td>🤖 LLM</td><td>Any OpenAI-compatible (Ollama)</td><td>OpenAI, Anthropic, and more</td></tr>
+<tr><td>🤖 LLM</td><td>OpenAI, Anthropic, Ollama</td><td>OpenAI, Anthropic, and more</td></tr>
+<tr><td>🗄️ Archive</td><td>Tiered memory with fallback</td><td>—</td></tr>
 </table>
 
 > mem0's numbers reflect its richer ecosystem — more stores, more integrations, more flexibility. R-Mem intentionally trades that for a minimal footprint.
@@ -55,26 +57,31 @@ Input text
 │    ├─ LLM extracts facts
 │    │    → ["Name is Alice", "Works at Google"]
 │    │
-│    ├─ Embedding → cosine similarity search (top-5)
+│    ├─ Embedding → cosine similarity search
+│    │    (FTS5 pre-filter + vector ranking)
 │    │
 │    ├─ Integer ID mapping
 │    │    (prevents LLM UUID hallucination)
 │    │
 │    ├─ LLM decides per fact:
 │    │    ├─ ADD       new information
-│    │    ├─ UPDATE    more specific
-│    │    │             "likes sports" → "likes tennis"
-│    │    ├─ DELETE    contradiction
-│    │    │             "likes pizza" → "hates pizza"
+│    │    ├─ UPDATE    more specific → old version archived
+│    │    ├─ DELETE    contradiction → old version archived
 │    │    └─ NONE      duplicate — skip
 │    │
 │    └─ Execute actions + write history
 │
-└─ 🕸️ Graph Memory ──────────────────────────────────
+├─ 🕸️ Graph Memory ──────────────────────────────────
+│    │
+│    ├─ LLM extracts entities + relations
+│    ├─ Conflict detection (soft-delete old, add new)
+│    └─ Multi-value vs single-value handling
+│
+└─ 🗄️ Archive ───────────────────────────────────────
      │
-     ├─ LLM extracts entities + relations
-     ├─ Conflict detection (soft-delete old, add new)
-     └─ Multi-value vs single-value handling
+     ├─ Deleted/superseded memories preserved with embeddings
+     ├─ Fallback search when active results are weak
+     └─ Auto-compaction when archive exceeds threshold
 ```
 
 ---
@@ -86,14 +93,14 @@ Input text
 | Requirement | Install |
 |---|---|
 | Rust 1.75+ | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| LLM backend | [Ollama](https://ollama.com) (local) or any OpenAI-compatible API |
+| LLM backend | [Ollama](https://ollama.com), [OpenAI](https://platform.openai.com), or [Anthropic](https://console.anthropic.com) |
 
 ### Build & Run
 
 ```bash
 git clone https://github.com/Adaimade/R-Mem.git && cd R-Mem
 cargo build --release
-# → target/release/rustmem (3.5 MB)
+# → target/release/rustmem (3.6 MB)
 ```
 
 ### Configure
@@ -104,6 +111,7 @@ Create `rustmem.toml` in the project root:
 <tr>
 <td><strong>Ollama (local)</strong></td>
 <td><strong>OpenAI</strong></td>
+<td><strong>Anthropic</strong></td>
 </tr>
 <tr>
 <td>
@@ -136,8 +144,25 @@ model = "text-embedding-3-small"
 ```
 
 </td>
+<td>
+
+```toml
+[llm]
+provider = "anthropic"
+api_key = "sk-ant-..."
+model = "claude-sonnet-4-6"
+
+[embedding]
+provider = "openai"
+api_key = "sk-..."
+model = "text-embedding-3-small"
+```
+
+</td>
 </tr>
 </table>
+
+> **Note:** Anthropic does not provide embedding models, so `[embedding]` uses OpenAI or Ollama even when `[llm]` uses Anthropic.
 
 ---
 
@@ -185,6 +210,12 @@ curl -X DELETE http://localhost:8019/memories/{id}
 
 # 📜 History
 curl http://localhost:8019/memories/{id}/history
+
+# 🗄️ View archived memories
+curl http://localhost:8019/archive?user_id=alice
+
+# 🕸️ View graph relations
+curl http://localhost:8019/graph?user_id=alice
 ```
 
 ### Drop-in for AI Agents
@@ -234,14 +265,14 @@ src/
 ├── config.rs        TOML + env var config
 ├── server.rs        REST API (axum)
 ├── mcp.rs           MCP server (rmcp) — 7 tools over stdio
-├── memory.rs        Core orchestrator — 3-tier memory pipeline
-├── extract.rs       LLM prompts: fact / entity / relation extraction
+├── memory.rs        Core orchestrator — tiered memory pipeline
+├── extract.rs       LLM calls: OpenAI + Anthropic native
 ├── embedding.rs     OpenAI-compatible embedding client
-├── store.rs         SQLite vector store (cosine similarity)
+├── store.rs         SQLite vector store (WAL + FTS5 + archive)
 └── graph.rs         SQLite graph store (soft-delete, multi-value)
 ```
 
-**9 files. Zero external services.**
+**9 files. 2,621 lines. 3.6 MB binary. Zero external services.**
 
 ---
 
@@ -250,6 +281,9 @@ src/
 | Status | Feature | Description |
 |---|---|---|
 | ✅ | **MCP Server** | `rustmem mcp` — 7 tools over stdio for Claude Code / Cursor |
+| ✅ | **Tiered Archive** | Deleted/updated memories preserved + fallback search |
+| ✅ | **Anthropic Native** | Direct Claude API support (no proxy needed) |
+| ✅ | **FTS5 Index** | Full-text pre-filtering for faster search |
 | 🔲 | **Batch Import** | Load existing mem0 exports |
 | 🔲 | **Multi-modal** | Image / audio memory support |
 | 🔲 | **Agent SDK** | Rust crate for direct embedding (no HTTP) |
@@ -261,7 +295,7 @@ Community contributions welcome — open an issue or PR.
 
 <div align="center">
 
-**MIT License**
+**MIT License** · v0.2.0
 
 Created by [Ad Huang](https://github.com/Adaimade) with [Claude Code](https://claude.ai)
 
