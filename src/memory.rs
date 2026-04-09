@@ -165,7 +165,8 @@ impl MemoryManager {
         limit: usize,
     ) -> Result<Vec<SearchResult>> {
         let query_emb = embedding::embed(&self.config.embedding, query).await?;
-        let mut results = self.store.search(user_id, &query_emb, limit).await?;
+        // Two-stage search: FTS5 pre-filter → vector ranking
+        let mut results = self.store.search_with_fts(user_id, query, &query_emb, limit).await?;
 
         // Tag active results
         for r in &mut results {
