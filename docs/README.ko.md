@@ -10,6 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
+[![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
 [빠른 시작](#-빠른-시작) · [작동 방식](#-작동-방식) · [사용법](#-사용법) · [MCP](#-mcp-server) · [아키텍처](#️-아키텍처) · [로드맵](#️-로드맵)
 

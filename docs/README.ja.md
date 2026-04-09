@@ -10,6 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
+[![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
 [クイックスタート](#-クイックスタート) · [仕組み](#-仕組み) · [使い方](#-使い方) · [MCP](#-mcp-server) · [アーキテクチャ](#️-アーキテクチャ) · [ロードマップ](#️-ロードマップ)
 
