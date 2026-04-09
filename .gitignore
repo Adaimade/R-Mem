@@ -3,4 +3,6 @@
 .DS_Store
 .env
 rustmem.db
+rustmem.db-shm
+rustmem.db-wal
 rustmem.toml
