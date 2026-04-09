@@ -1,11 +1,7 @@
-mod config;
-mod embedding;
-mod extract;
-mod graph;
 mod mcp;
-mod memory;
 mod server;
-mod store;
+
+use rustmem::{config, graph, memory, store};
 
 use clap::{Parser, Subcommand};
 use tracing::info;
