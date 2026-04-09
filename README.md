@@ -13,6 +13,8 @@
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
+**3.6 MB binary** · **2,621 lines of Rust** · **< 10 MB RAM** · **SQLite only** · **MCP ready**
+
 [Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Usage](#-usage) · [MCP](#-mcp-server) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
 🌐 [繁體中文](docs/README.zh-TW.md) · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [한국어](docs/README.ko.md)
@@ -163,6 +165,8 @@ model = "text-embedding-3-small"
 </table>
 
 > **Note:** Anthropic does not provide embedding models, so `[embedding]` uses OpenAI or Ollama even when `[llm]` uses Anthropic.
+
+> **Security:** R-Mem binds to `127.0.0.1` by default (localhost only). Never put API keys in code — use `rustmem.toml` (gitignored) or environment variables (`RUSTMEM__LLM__API_KEY`).
 
 ---
 
