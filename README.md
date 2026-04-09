@@ -47,6 +47,17 @@ R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our m
 
 > mem0's numbers reflect its richer ecosystem — more stores, more integrations, more flexibility. R-Mem intentionally trades that for a minimal footprint.
 
+### What R-Mem adds beyond mem0
+
+| Feature | R-Mem | mem0 |
+|---|---|---|
+| **Tiered Archive** | Deleted/updated memories preserved + fallback search | Gone when deleted |
+| **FTS5 Pre-filter** | Two-stage search: keyword → vector (19x faster) | Vector-only |
+| **MCP Server** | Built-in, `rustmem mcp` for Claude Code / Cursor | Not available |
+| **Zero-dependency deploy** | Single binary, SQLite, no Docker | Python + pip + vector DB + graph DB |
+| **Anthropic native** | Direct Claude API support | Via OpenAI-compatible proxy |
+| **Configurable pipeline** | `[memory]` section: thresholds, limits, all tunable | Hardcoded defaults |
+
 ---
 
 ## 🔍 How It Works
