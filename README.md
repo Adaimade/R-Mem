@@ -13,7 +13,7 @@
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
-**3.6 MB binary** · **2,733 lines of Rust** · **< 10 MB RAM** · **SQLite only** · **MCP ready** · **19x search speedup with FTS5**
+**3.6 MB binary** · **2,733 lines of Rust** · **< 10 MB RAM** · **SQLite only** · **MCP ready** · **LongMemEval 48.2%**
 
 [Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Usage](#-usage) · [MCP](#-mcp-server) · [Performance](#-performance) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
@@ -284,6 +284,20 @@ Run the benchmark yourself:
 ```bash
 cargo bench --bench store_bench
 ```
+
+### LongMemEval
+
+[LongMemEval](https://github.com/xiaowu0162/LongMemEval) (ICLR 2025) — 500 questions testing long-term memory across 5 capabilities:
+
+| System | Score | Notes |
+|---|---|---|
+| agentmemory | 96.2% | RAG (stores raw text) |
+| MemLayer | 94.4% | RAG (layered index) |
+| Zep | 63.8% | RAG + summary |
+| mem0 | ~49% | Fact extraction (gpt-4o) |
+| **R-Mem** | **48.2%** | **Fact extraction (gpt-4o-mini)** |
+
+> R-Mem nearly matches mem0 using a 20x cheaper model. The gap vs RAG systems is architectural — R-Mem extracts and deduplicates facts rather than storing raw text, which trades verbatim recall for efficient long-term knowledge management.
 
 ---
 
