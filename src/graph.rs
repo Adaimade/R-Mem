@@ -25,6 +25,8 @@ impl GraphStore {
         // Use the same DB file, different tables
         let conn = rusqlite::Connection::open(path).context("Failed to open graph DB")?;
 
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS entities (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,

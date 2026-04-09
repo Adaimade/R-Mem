@@ -1,8 +1,14 @@
 [package]
 name = "rustmem"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "A lightweight Rust alternative to mem0 — long-term memory for AI agents"
+license = "MIT"
+repository = "https://github.com/Adaimade/R-Mem"
+homepage = "https://github.com/Adaimade/R-Mem"
+keywords = ["ai", "memory", "sqlite", "llm", "agent"]
+categories = ["database", "command-line-utilities"]
+readme = "README.md"
 
 [dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "net", "time"] }

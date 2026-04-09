@@ -304,6 +304,8 @@ pub async fn extract_relations(
 async fn llm_call(config: &LlmConfig, system: &str, user: &str) -> Result<String> {
     let client = Client::new();
 
+    let is_anthropic = config.provider.as_str() == "anthropic";
+
     let base = if config.base_url.is_empty() {
         match config.provider.as_str() {
             "openai" => "https://api.openai.com",
@@ -314,46 +316,87 @@ async fn llm_call(config: &LlmConfig, system: &str, user: &str) -> Result<String
         config.base_url.trim_end_matches('/')
     };
 
-    let url = format!("{base}/v1/chat/completions");
     let model = if config.model.is_empty() {
-        "qwen2.5:32b"
+        if is_anthropic { "claude-sonnet-4-6" } else { "qwen2.5:32b" }
     } else {
         &config.model
     };
 
-    let body = serde_json::json!({
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user}
-        ],
-        "temperature": 0.1,
-    });
+    if is_anthropic {
+        // Anthropic Messages API (native)
+        let url = format!("{base}/v1/messages");
+        let body = serde_json::json!({
+            "model": model,
+            "max_tokens": 4096,
+            "system": system,
+            "messages": [
+                {"role": "user", "content": user}
+            ],
+            "temperature": 0.1,
+        });
 
-    let mut req = client.post(&url).header("content-type", "application/json");
-    if !config.api_key.is_empty() {
-        req = req.header("authorization", format!("Bearer {}", config.api_key));
+        let mut req = client.post(&url)
+            .header("content-type", "application/json")
+            .header("anthropic-version", "2023-06-01");
+        if !config.api_key.is_empty() {
+            req = req.header("x-api-key", &config.api_key);
+        }
+
+        let resp = req.json(&body).send().await.context("Anthropic API request failed")?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Anthropic API error {status}: {text}");
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        let content = data
+            .get("content")
+            .and_then(|c| c.get(0))
+            .and_then(|c| c.get("text"))
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok(content)
+    } else {
+        // OpenAI-compatible API (OpenAI, Ollama, etc.)
+        let url = format!("{base}/v1/chat/completions");
+        let body = serde_json::json!({
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user}
+            ],
+            "temperature": 0.1,
+        });
+
+        let mut req = client.post(&url).header("content-type", "application/json");
+        if !config.api_key.is_empty() {
+            req = req.header("authorization", format!("Bearer {}", config.api_key));
+        }
+
+        let resp = req.json(&body).send().await.context("LLM request failed")?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            anyhow::bail!("LLM API error {status}: {text}");
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        let content = data
+            .get("choices")
+            .and_then(|c| c.get(0))
+            .and_then(|c| c.get("message"))
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok(content)
     }
-
-    let resp = req.json(&body).send().await.context("LLM request failed")?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await.unwrap_or_default();
-        anyhow::bail!("LLM API error {status}: {text}");
-    }
-
-    let data: serde_json::Value = resp.json().await?;
-    let content = data
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    Ok(content)
 }
 
 // ── JSON parsing helpers ─────────────────────────────────────────────

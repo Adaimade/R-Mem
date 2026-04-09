@@ -47,6 +47,9 @@ impl MemoryStore {
     pub fn open(path: &str) -> Result<Self> {
         let conn = Connection::open(path).context("Failed to open memory DB")?;
 
+        // WAL mode: allows concurrent reads while writing
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS memories (
                  id TEXT PRIMARY KEY,
@@ -57,6 +60,11 @@ impl MemoryStore {
                  updated_at TEXT DEFAULT (datetime('now'))
              );
              CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id);
+
+             -- FTS5 full-text index for pre-filtering before vector search
+             CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+                 text, content='memories', content_rowid='rowid'
+             );
 
              CREATE TABLE IF NOT EXISTS history (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +115,12 @@ impl MemoryStore {
             params![id, text],
         )?;
 
+        // Update FTS index
+        db.execute(
+            "INSERT INTO memories_fts(rowid, text) SELECT rowid, text FROM memories WHERE id = ?1",
+            [id],
+        ).ok(); // non-fatal if FTS fails
+
         Ok(())
     }
 
@@ -144,6 +158,16 @@ impl MemoryStore {
             "INSERT INTO history (memory_id, action, old_text, new_text) VALUES (?1, 'UPDATE', ?2, ?3)",
             params![id, old_text, text],
         )?;
+
+        // Rebuild FTS for this row
+        db.execute(
+            "INSERT INTO memories_fts(memories_fts, rowid, text) VALUES('delete', (SELECT rowid FROM memories WHERE id = ?1), ?2)",
+            params![id, old_text],
+        ).ok();
+        db.execute(
+            "INSERT INTO memories_fts(rowid, text) SELECT rowid, text FROM memories WHERE id = ?1",
+            [id],
+        ).ok();
 
         Ok(())
     }
@@ -258,6 +282,33 @@ impl MemoryStore {
         results.truncate(limit);
 
         Ok(results)
+    }
+
+    /// Full-text search using FTS5. Returns matching memory IDs for pre-filtering.
+    pub async fn fts_search(&self, user_id: &str, query: &str, limit: usize) -> Result<Vec<String>> {
+        let db = self.db.lock().await;
+
+        // Tokenize query into FTS5 terms (OR logic)
+        let terms: Vec<&str> = query.split_whitespace()
+            .filter(|w| w.len() > 2)
+            .collect();
+        if terms.is_empty() {
+            return Ok(Vec::new());
+        }
+        let fts_query = terms.join(" OR ");
+
+        let sql = "SELECT m.id FROM memories m
+                    JOIN memories_fts f ON m.rowid = f.rowid
+                    WHERE m.user_id = ?1 AND memories_fts MATCH ?2
+                    LIMIT ?3";
+
+        let mut stmt = db.prepare(sql)?;
+        let ids: Vec<String> = stmt
+            .query_map(params![user_id, fts_query, limit], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(ids)
     }
 
     /// Get existing memories as (id, text) pairs for dedup.
