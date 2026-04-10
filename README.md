@@ -13,7 +13,7 @@
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
-**3.6 MB binary** · **2,733 lines of Rust** · **< 10 MB RAM** · **SQLite only** · **MCP ready** · **LongMemEval 48.2%**
+**3.6 MB binary** · **2,826 lines of Rust** · **< 10 MB RAM** · **SQLite only** · **MCP ready** · **LongMemEval 48.2%**
 
 [Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Usage](#-usage) · [MCP](#-mcp-server) · [Performance](#-performance) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
@@ -30,7 +30,7 @@
 
 mem0 is a well-designed memory system with a rich plugin ecosystem. R-Mem asks a narrower question: *what if we rewrite just the core memory logic in Rust, backed entirely by SQLite?*
 
-The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — plus a **tiered archive** system, in **2,733 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
+The result is the same three-tier architecture — **vector memory**, **graph memory**, **history** — plus a **tiered archive** system, in **2,826 lines of Rust**. No external services. One binary. The trade-off is clear: far fewer integrations, but near-zero operational overhead.
 
 R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our minimalist Rust AI agent framework. RustClaw needed a memory layer that matched its philosophy: single binary, zero external services. So we studied mem0's architecture and rebuilt it in Rust.
 
@@ -38,7 +38,7 @@ R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our m
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
 <tr><td>📦 Binary</td><td>3.6 MB static</td><td>Python + pip (rich ecosystem)</td></tr>
 <tr><td>💾 Idle RSS</td><td>&lt; 10 MB</td><td>200 MB+ (more features loaded)</td></tr>
-<tr><td>📝 Code</td><td>2,733 lines</td><td>~91,500 lines (26+ store drivers)</td></tr>
+<tr><td>📝 Code</td><td>2,826 lines</td><td>~91,500 lines (26+ store drivers)</td></tr>
 <tr><td>🔍 Vector</td><td>SQLite + FTS5</td><td>Qdrant, Chroma, Pinecone, …</td></tr>
 <tr><td>🕸️ Graph</td><td>SQLite only</td><td>Neo4j / Memgraph</td></tr>
 <tr><td>🤖 LLM</td><td>OpenAI, Anthropic, Ollama</td><td>OpenAI, Anthropic, and more</td></tr>
@@ -57,6 +57,7 @@ R-Mem was born out of [RustClaw](https://github.com/Adaimade/RustClaw) — our m
 | **Zero-dependency deploy** | Single binary, SQLite, no Docker | Python + pip + vector DB + graph DB |
 | **Anthropic native** | Direct Claude API support | Via OpenAI-compatible proxy |
 | **Configurable pipeline** | `[memory]` section: thresholds, limits, all tunable | Hardcoded defaults |
+| **Memory categories** | Auto-classified: preference, personal, plan, professional, health | Unstructured |
 
 ---
 
@@ -226,6 +227,9 @@ curl -X POST http://localhost:8019/memories/search \
 # 📋 List all
 curl http://localhost:8019/memories?user_id=alice
 
+# 🏷️ Filter by category (preference, personal, plan, professional, health, misc)
+curl http://localhost:8019/memories?user_id=alice&category=preference
+
 # 🗑️ Delete
 curl -X DELETE http://localhost:8019/memories/{id}
 
@@ -327,7 +331,7 @@ src/
 └── graph.rs         SQLite graph store (soft-delete, multi-value)
 ```
 
-**9 files. 2,733 lines. 3.6 MB binary. Zero external services.**
+**9 files. 2,826 lines. 3.6 MB binary. Zero external services.**
 
 ---
 
@@ -350,7 +354,7 @@ Community contributions welcome — open an issue or PR.
 
 <div align="center">
 
-**MIT License** · v0.2.0
+**MIT License** · v0.3.0
 
 Created by [Ad Huang](https://github.com/Adaimade) with [Claude Code](https://claude.ai)
 
