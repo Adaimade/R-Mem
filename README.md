@@ -339,13 +339,20 @@ src/
 
 | Status | Feature | Description |
 |---|---|---|
+| ✅ | **Published on crates.io** | `cargo install rustmem` — one-line install |
 | ✅ | **MCP Server** | `rustmem mcp` — 7 tools over stdio for Claude Code / Cursor |
 | ✅ | **Tiered Archive** | Deleted/updated memories preserved + fallback search |
+| ✅ | **FTS5 Two-Stage Search** | Keyword pre-filter + vector re-rank — 19x faster |
+| ✅ | **Memory Categories** | Auto-classified: preference, personal, plan, professional, health |
 | ✅ | **Anthropic Native** | Direct Claude API support (no proxy needed) |
-| ✅ | **FTS5 Index** | Full-text pre-filtering for faster search |
+| ✅ | **Agent SDK (lib crate)** | Use `rustmem::{memory, store, graph}` directly in your Rust code |
+| ✅ | **LongMemEval Benchmark** | 48.2% with gpt-4o-mini, nearly matching mem0 (~49%) |
+| ✅ | **Production Audit** | 11 security/stability fixes, 25 unit tests, cargo bench |
+| 🔲 | **Episodic Memory** | Task execution history (tool calls, params, results) |
+| 🔲 | **User Preference Model** | Cross-session user style and behavior modeling |
+| 🔲 | **Skill Abstraction** | Auto-extract repeated successful patterns into skills |
 | 🔲 | **Batch Import** | Load existing mem0 exports |
 | 🔲 | **Multi-modal** | Image / audio memory support |
-| 🔲 | **Agent SDK** | Rust crate for direct embedding (no HTTP) |
 | 🔲 | **Dashboard** | Lightweight web UI for memory inspection |
 
 Community contributions welcome — open an issue or PR.

@@ -297,13 +297,20 @@ src/
 
 | 状态 | 功能 | 说明 |
 |---|---|---|
+| ✅ | **发布至 crates.io** | `cargo install rustmem` — 一行命令安装 |
 | ✅ | **MCP Server** | `rustmem mcp` — 7 个 tools 走 stdio，支持 Claude Code / Cursor |
 | ✅ | **分层 Archive** | 已删除/更新的记忆保留 + fallback 搜索 |
+| ✅ | **FTS5 两阶段搜索** | 关键词预过滤 + vector 重新排序 — 快 19 倍 |
+| ✅ | **记忆分类** | 自动分类：preference, personal, plan, professional, health |
 | ✅ | **Anthropic Native** | 直接支持 Claude API（无需代理） |
-| ✅ | **FTS5 索引** | 全文预过滤加速搜索 |
+| ✅ | **Agent SDK（lib crate）** | 在 Rust 代码中直接使用 `rustmem::{memory, store, graph}` |
+| ✅ | **LongMemEval Benchmark** | 使用 gpt-4o-mini 达 48.2%，接近 mem0（约 49%） |
+| ✅ | **Production Audit** | 11 项安全/稳定性修复、25 个单元测试、cargo bench |
+| 🔲 | **Episodic Memory** | 任务执行历史（tool 调用、参数、结果） |
+| 🔲 | **User Preference Model** | 跨 session 的用户风格与行为建模 |
+| 🔲 | **Skill Abstraction** | 自动将重复成功模式提取为 skill |
 | 🔲 | **批量导入** | 加载现有 mem0 导出数据 |
 | 🔲 | **多模态** | 图片/音频记忆支持 |
-| 🔲 | **Agent SDK** | Rust crate 直接嵌入（无需 HTTP） |
 | 🔲 | **Dashboard** | 轻量级 web UI 用于记忆检查 |
 
 欢迎社区贡献 — 开 issue 或 PR 即可。

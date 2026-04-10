@@ -295,13 +295,20 @@ src/
 
 | ステータス | 機能 | 説明 |
 |---|---|---|
+| ✅ | **crates.io に公開** | `cargo install rustmem` — ワンライナーインストール |
 | ✅ | **MCP Server** | `rustmem mcp` — stdio 経由の 7 tools、Claude Code / Cursor 対応 |
 | ✅ | **階層アーカイブ** | 削除/更新されたメモリを保存 + fallback 検索 |
+| ✅ | **FTS5 2 段階検索** | キーワードプリフィルタ + vector 再ランキング — 19 倍高速 |
+| ✅ | **メモリカテゴリ** | 自動分類：preference, personal, plan, professional, health |
 | ✅ | **Anthropic Native** | Claude API の直接サポート（プロキシ不要） |
-| ✅ | **FTS5 インデックス** | 全文プリフィルタリングによる高速検索 |
+| ✅ | **Agent SDK（lib crate）** | Rust コードから `rustmem::{memory, store, graph}` を直接使用 |
+| ✅ | **LongMemEval Benchmark** | gpt-4o-mini で 48.2%、mem0（約 49%）にほぼ匹敵 |
+| ✅ | **Production Audit** | 11 項目のセキュリティ/安定性修正、25 個のユニットテスト、cargo bench |
+| 🔲 | **Episodic Memory** | タスク実行履歴（tool 呼び出し、パラメータ、結果） |
+| 🔲 | **User Preference Model** | セッション横断のユーザースタイルと行動モデリング |
+| 🔲 | **Skill Abstraction** | 繰り返される成功パターンを skill として自動抽出 |
 | 🔲 | **バッチインポート** | 既存の mem0 エクスポートデータを読み込み |
 | 🔲 | **マルチモーダル** | 画像/音声メモリサポート |
-| 🔲 | **Agent SDK** | Rust crate による直接埋め込み（HTTP 不要） |
 | 🔲 | **Dashboard** | メモリ検査用の軽量 web UI |
 
 コミュニティからの貢献を歓迎します — issue または PR をお気軽にどうぞ。

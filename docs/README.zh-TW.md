@@ -295,13 +295,20 @@ src/
 
 | 狀態 | 功能 | 說明 |
 |---|---|---|
+| ✅ | **發布至 crates.io** | `cargo install rustmem` — 一行指令安裝 |
 | ✅ | **MCP Server** | `rustmem mcp` — 7 個 tools 走 stdio，支援 Claude Code / Cursor |
 | ✅ | **Tiered Archive** | 被刪除/更新的記憶保留 + fallback 搜尋 |
+| ✅ | **FTS5 兩階段搜尋** | 關鍵字預過濾 + vector 重新排序 — 快 19 倍 |
+| ✅ | **記憶分類** | 自動分類：preference, personal, plan, professional, health |
 | ✅ | **Anthropic Native** | 直接支援 Claude API（不需 proxy） |
-| ✅ | **FTS5 Index** | 全文預過濾，加速搜尋 |
+| ✅ | **Agent SDK（lib crate）** | 在 Rust 程式碼中直接使用 `rustmem::{memory, store, graph}` |
+| ✅ | **LongMemEval Benchmark** | 使用 gpt-4o-mini 達 48.2%，接近 mem0（約 49%） |
+| ✅ | **Production Audit** | 11 項安全性/穩定性修復、25 個單元測試、cargo bench |
+| 🔲 | **Episodic Memory** | 任務執行歷史（tool 呼叫、參數、結果） |
+| 🔲 | **User Preference Model** | 跨 session 的使用者風格與行為建模 |
+| 🔲 | **Skill Abstraction** | 自動將重複成功模式萃取為 skill |
 | 🔲 | **批次匯入** | 載入現有 mem0 匯出資料 |
 | 🔲 | **多模態** | 圖片/音訊記憶支援 |
-| 🔲 | **Agent SDK** | Rust crate 直接嵌入（不需 HTTP） |
 | 🔲 | **Dashboard** | 輕量級 web UI 用於記憶檢視 |
 
 歡迎社群貢獻 — 開 issue 或 PR 即可。

@@ -295,13 +295,20 @@ src/
 
 | 상태 | 기능 | 설명 |
 |---|---|---|
+| ✅ | **crates.io에 배포** | `cargo install rustmem` — 한 줄 설치 |
 | ✅ | **MCP Server** | `rustmem mcp` — stdio를 통한 7개 tools, Claude Code / Cursor 지원 |
 | ✅ | **계층 아카이브** | 삭제/업데이트된 메모리 보존 + fallback 검색 |
+| ✅ | **FTS5 2단계 검색** | 키워드 사전 필터 + vector 재랭킹 — 19배 빠름 |
+| ✅ | **메모리 카테고리** | 자동 분류: preference, personal, plan, professional, health |
 | ✅ | **Anthropic Native** | Claude API 직접 지원 (프록시 불필요) |
-| ✅ | **FTS5 인덱스** | 빠른 검색을 위한 전문 검색 사전 필터링 |
+| ✅ | **Agent SDK (lib crate)** | Rust 코드에서 `rustmem::{memory, store, graph}`를 직접 사용 |
+| ✅ | **LongMemEval Benchmark** | gpt-4o-mini로 48.2%, mem0 (약 49%)에 근접 |
+| ✅ | **Production Audit** | 11개의 보안/안정성 수정, 25개의 단위 테스트, cargo bench |
+| 🔲 | **Episodic Memory** | 작업 실행 히스토리 (tool 호출, 파라미터, 결과) |
+| 🔲 | **User Preference Model** | 세션 간 사용자 스타일 및 행동 모델링 |
+| 🔲 | **Skill Abstraction** | 반복되는 성공 패턴을 skill로 자동 추출 |
 | 🔲 | **배치 임포트** | 기존 mem0 내보내기 데이터 로드 |
 | 🔲 | **멀티모달** | 이미지/오디오 메모리 지원 |
-| 🔲 | **Agent SDK** | Rust crate로 직접 임베딩 (HTTP 불필요) |
 | 🔲 | **Dashboard** | 메모리 검사용 경량 web UI |
 
 커뮤니티 기여를 환영합니다 — issue 또는 PR을 열어주세요.
