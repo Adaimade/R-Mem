@@ -28,7 +28,7 @@
 
 mem0 は優れた設計のメモリシステムであり、豊富な plugin エコシステムを持っています。R-Mem はより狭い問いを立てています：*コアのメモリロジックだけを Rust で書き直し、完全に SQLite をバックエンドにしたらどうなるか？*
 
-結果は同じ三層アーキテクチャ — **vector memory**、**graph memory**、**history** — と **階層アーカイブ** システムを **2,621 行の Rust** で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
+結果は同じ三層アーキテクチャ — **vector memory**、**graph memory**、**history** — と **階層アーカイブ** システムを **2,826 行の Rust** で実現。外部サービス不要。バイナリ一つ。トレードオフは明確：統合の数は mem0 よりはるかに少ないが、運用オーバーヘッドはほぼゼロ。
 
 R-Mem は [RustClaw](https://github.com/Adaimade/RustClaw) から生まれました — 私たちのミニマリスト Rust AI agent フレームワークです。RustClaw にはその哲学に合ったメモリレイヤーが必要でした：シングルバイナリ、外部サービスゼロ。そこで mem0 のアーキテクチャを研究し、Rust で再構築しました。
 
@@ -36,7 +36,7 @@ R-Mem は [RustClaw](https://github.com/Adaimade/RustClaw) から生まれまし
 <tr><td></td><td><strong>R-Mem</strong></td><td><strong>mem0</strong></td></tr>
 <tr><td>📦 バイナリ</td><td>3.6 MB 静的リンク</td><td>Python + pip（豊富なエコシステム）</td></tr>
 <tr><td>💾 アイドル RSS</td><td>&lt; 10 MB</td><td>200 MB+（より多くの機能をロード）</td></tr>
-<tr><td>📝 コード</td><td>2,621 行</td><td>~91,500 行（26+ 種の store driver）</td></tr>
+<tr><td>📝 コード</td><td>2,826 行</td><td>~91,500 行（26+ 種の store driver）</td></tr>
 <tr><td>🔍 Vector</td><td>SQLite + FTS5</td><td>Qdrant、Chroma、Pinecone…</td></tr>
 <tr><td>🕸️ Graph</td><td>SQLite のみ</td><td>Neo4j / Memgraph</td></tr>
 <tr><td>🤖 LLM</td><td>OpenAI、Anthropic、Ollama</td><td>OpenAI、Anthropic など</td></tr>
@@ -44,6 +44,18 @@ R-Mem は [RustClaw](https://github.com/Adaimade/RustClaw) から生まれまし
 </table>
 
 > mem0 の数字は豊かなエコシステムを反映しています — より多くの store、より多くの統合、より多くの柔軟性。R-Mem は最小限のフットプリントのためにそれらを意図的にトレードオフしています。
+
+### R-Mem が mem0 に追加する機能
+
+| 機能 | R-Mem | mem0 |
+|---|---|---|
+| **階層アーカイブ** | 削除/更新されたメモリを保存 + fallback 検索 | 削除されたら消失 |
+| **FTS5 プリフィルタ** | 2 段階検索：キーワード → vector（19 倍高速） | vector のみ |
+| **MCP Server** | 内蔵 `rustmem mcp`、Claude Code / Cursor 対応 | 提供なし |
+| **依存ゼロのデプロイ** | シングルバイナリ、SQLite、Docker 不要 | Python + pip + vector DB + graph DB |
+| **Anthropic ネイティブ対応** | Claude API を直接サポート | OpenAI 互換プロキシ経由 |
+| **設定可能なパイプライン** | `[memory]` セクション：閾値や上限などすべて調整可能 | ハードコードされたデフォルト |
+| **メモリカテゴリ** | 自動分類：preference, personal, plan, professional, health | 非構造化 |
 
 ---
 
@@ -205,6 +217,9 @@ curl -X POST http://localhost:8019/memories/search \
 # 📋 全件取得
 curl http://localhost:8019/memories?user_id=alice
 
+# 🏷️ カテゴリでフィルタ（preference, personal, plan, professional, health, misc）
+curl http://localhost:8019/memories?user_id=alice&category=preference
+
 # 🗑️ 削除
 curl -X DELETE http://localhost:8019/memories/{id}
 
@@ -272,7 +287,7 @@ src/
 └── graph.rs         SQLite graph store（soft-delete、多値関係）
 ```
 
-**9 ファイル。2,621 行。3.6 MB バイナリ。外部サービスゼロ。**
+**9 ファイル。2,826 行。3.6 MB バイナリ。外部サービスゼロ。**
 
 ---
 
@@ -295,7 +310,7 @@ src/
 
 <div align="center">
 
-**MIT License** · v0.2.0
+**MIT License** · v0.3.0
 
 [Ad Huang](https://github.com/Adaimade) が [Claude Code](https://claude.ai) で構築
 
