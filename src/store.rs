@@ -66,7 +66,6 @@ impl MemoryStore {
                  updated_at TEXT DEFAULT (datetime('now'))
              );
              CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id);
-             CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(user_id, category);
 
              -- FTS5 full-text index for pre-filtering before vector search
              CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
@@ -97,6 +96,7 @@ impl MemoryStore {
 
         // Migration: add category column to existing databases
         conn.execute("ALTER TABLE memories ADD COLUMN category TEXT DEFAULT 'misc'", []).ok();
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(user_id, category)", []).ok();
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
