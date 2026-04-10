@@ -11,6 +11,8 @@ pub struct MemoryRecord {
     pub id: String,
     pub user_id: String,
     pub text: String,
+    #[serde(default)]
+    pub category: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -58,11 +60,13 @@ impl MemoryStore {
                  id TEXT PRIMARY KEY,
                  user_id TEXT NOT NULL,
                  text TEXT NOT NULL,
+                 category TEXT DEFAULT 'misc',
                  embedding BLOB,
                  created_at TEXT DEFAULT (datetime('now')),
                  updated_at TEXT DEFAULT (datetime('now'))
              );
              CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id);
+             CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(user_id, category);
 
              -- FTS5 full-text index for pre-filtering before vector search
              CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
@@ -91,6 +95,9 @@ impl MemoryStore {
              CREATE INDEX IF NOT EXISTS idx_archive_user ON archive(user_id);",
         )?;
 
+        // Migration: add category column to existing databases
+        conn.execute("ALTER TABLE memories ADD COLUMN category TEXT DEFAULT 'misc'", []).ok();
+
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
         })
@@ -102,14 +109,15 @@ impl MemoryStore {
         id: &str,
         user_id: &str,
         text: &str,
+        category: &str,
         embedding: &[f32],
     ) -> Result<()> {
         let db = self.db.lock().await;
         let blob = embedding_to_blob(embedding);
 
         db.execute(
-            "INSERT INTO memories (id, user_id, text, embedding) VALUES (?1, ?2, ?3, ?4)",
-            params![id, user_id, text, blob],
+            "INSERT INTO memories (id, user_id, text, category, embedding) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, user_id, text, category, blob],
         )
         .context("Failed to insert memory")?;
 
@@ -214,7 +222,7 @@ impl MemoryStore {
     pub async fn get_all(&self, user_id: &str) -> Result<Vec<MemoryRecord>> {
         let db = self.db.lock().await;
         let mut stmt = db.prepare(
-            "SELECT id, user_id, text, created_at, updated_at FROM memories WHERE user_id = ?1 ORDER BY updated_at DESC",
+            "SELECT id, user_id, text, category, created_at, updated_at FROM memories WHERE user_id = ?1 ORDER BY updated_at DESC",
         )?;
 
         let rows = stmt
@@ -223,8 +231,9 @@ impl MemoryStore {
                     id: row.get(0)?,
                     user_id: row.get(1)?,
                     text: row.get(2)?,
-                    created_at: row.get(3)?,
-                    updated_at: row.get(4)?,
+                    category: row.get::<_, Option<String>>(3)?.unwrap_or_else(|| "misc".to_string()),
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -238,20 +247,45 @@ impl MemoryStore {
         let db = self.db.lock().await;
         let result = db
             .query_row(
-                "SELECT id, user_id, text, created_at, updated_at FROM memories WHERE id = ?1",
+                "SELECT id, user_id, text, category, created_at, updated_at FROM memories WHERE id = ?1",
                 [id],
                 |row| {
                     Ok(MemoryRecord {
                         id: row.get(0)?,
                         user_id: row.get(1)?,
                         text: row.get(2)?,
-                        created_at: row.get(3)?,
-                        updated_at: row.get(4)?,
+                        category: row.get::<_, Option<String>>(3)?.unwrap_or_else(|| "misc".to_string()),
+                        created_at: row.get(4)?,
+                        updated_at: row.get(5)?,
                     })
                 },
             )
             .ok();
         Ok(result)
+    }
+
+    /// Get all memories for a user filtered by category.
+    pub async fn get_by_category(&self, user_id: &str, category: &str) -> Result<Vec<MemoryRecord>> {
+        let db = self.db.lock().await;
+        let mut stmt = db.prepare(
+            "SELECT id, user_id, text, category, created_at, updated_at FROM memories WHERE user_id = ?1 AND category = ?2 ORDER BY updated_at DESC",
+        )?;
+
+        let rows = stmt
+            .query_map(params![user_id, category], |row| {
+                Ok(MemoryRecord {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    text: row.get(2)?,
+                    category: row.get::<_, Option<String>>(3)?.unwrap_or_else(|| "misc".to_string()),
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(rows)
     }
 
     /// Vector similarity search (brute-force). Use `search_with_fts` for the optimized path.
@@ -576,7 +610,7 @@ mod tests {
     async fn store_add_and_get() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &emb).await.unwrap();
 
         let record = store.get("id1").await.unwrap().unwrap();
         assert_eq!(record.text, "likes sushi");
@@ -587,7 +621,7 @@ mod tests {
     async fn store_update_records_history() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &emb).await.unwrap();
         store.update("id1", "loves sushi", &emb).await.unwrap();
 
         let record = store.get("id1").await.unwrap().unwrap();
@@ -603,7 +637,7 @@ mod tests {
     async fn store_delete_removes_record() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &emb).await.unwrap();
         store.delete("id1").await.unwrap();
 
         assert!(store.get("id1").await.unwrap().is_none());
@@ -616,9 +650,9 @@ mod tests {
     async fn store_search_returns_top_k() {
         let store = MemoryStore::open(":memory:").unwrap();
         // Add 3 memories with different embeddings
-        store.add("id1", "alice", "likes sushi", &[1.0, 0.0, 0.0]).await.unwrap();
-        store.add("id2", "alice", "likes pizza", &[0.9, 0.1, 0.0]).await.unwrap();
-        store.add("id3", "alice", "works at google", &[0.0, 0.0, 1.0]).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &[1.0, 0.0, 0.0]).await.unwrap();
+        store.add("id2", "alice", "likes pizza", "misc", &[0.9, 0.1, 0.0]).await.unwrap();
+        store.add("id3", "alice", "works at google", "misc", &[0.0, 0.0, 1.0]).await.unwrap();
 
         let query = vec![1.0, 0.0, 0.0];
         let results = store.search("alice", &query, 2).await.unwrap();
@@ -632,8 +666,8 @@ mod tests {
     async fn store_reset_clears_all() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "fact 1", &emb).await.unwrap();
-        store.add("id2", "alice", "fact 2", &emb).await.unwrap();
+        store.add("id1", "alice", "fact 1", "misc", &emb).await.unwrap();
+        store.add("id2", "alice", "fact 2", "misc", &emb).await.unwrap();
 
         let count = store.reset("alice").await.unwrap();
         assert_eq!(count, 2);
@@ -644,7 +678,7 @@ mod tests {
     async fn delete_archives_memory() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &emb).await.unwrap();
         store.delete("id1").await.unwrap();
 
         // Active memory gone
@@ -661,7 +695,7 @@ mod tests {
     async fn update_archives_old_version() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "likes sushi", &emb).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &emb).await.unwrap();
         store.update("id1", "loves sushi", &emb).await.unwrap();
 
         // Active has new version
@@ -678,7 +712,7 @@ mod tests {
     #[tokio::test]
     async fn archive_search_finds_deleted() {
         let store = MemoryStore::open(":memory:").unwrap();
-        store.add("id1", "alice", "likes sushi", &[1.0, 0.0, 0.0]).await.unwrap();
+        store.add("id1", "alice", "likes sushi", "misc", &[1.0, 0.0, 0.0]).await.unwrap();
         store.delete("id1").await.unwrap();
 
         let query = vec![1.0, 0.0, 0.0];
@@ -692,7 +726,7 @@ mod tests {
     async fn reset_clears_archive() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "fact 1", &emb).await.unwrap();
+        store.add("id1", "alice", "fact 1", "misc", &emb).await.unwrap();
         store.delete("id1").await.unwrap();
         assert_eq!(store.archive_count("alice").await.unwrap(), 1);
 
@@ -704,8 +738,8 @@ mod tests {
     async fn store_user_isolation() {
         let store = MemoryStore::open(":memory:").unwrap();
         let emb = fake_embedding(1.0);
-        store.add("id1", "alice", "alice fact", &emb).await.unwrap();
-        store.add("id2", "bob", "bob fact", &emb).await.unwrap();
+        store.add("id1", "alice", "alice fact", "misc", &emb).await.unwrap();
+        store.add("id2", "bob", "bob fact", "misc", &emb).await.unwrap();
 
         let alice = store.get_all("alice").await.unwrap();
         assert_eq!(alice.len(), 1);

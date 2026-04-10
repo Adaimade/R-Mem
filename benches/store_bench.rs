@@ -19,11 +19,13 @@ fn main() {
              id TEXT PRIMARY KEY,
              user_id TEXT NOT NULL,
              text TEXT NOT NULL,
+             category TEXT DEFAULT 'misc',
              embedding BLOB,
              created_at TEXT DEFAULT (datetime('now')),
              updated_at TEXT DEFAULT (datetime('now'))
          );
          CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id);
+         CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(user_id, category);
          CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
              text, content='memories', content_rowid='rowid'
          );",

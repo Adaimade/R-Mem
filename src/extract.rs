@@ -5,28 +5,28 @@ use crate::config::LlmConfig;
 
 // ── Prompts (faithful to mem0) ───────────────────────────────────────
 
-const FACT_EXTRACTION_PROMPT: &str = r#"You are a Personal Information Organizer, specialized in accurately storing facts, user memories, and preferences. Your job is to extract distinct facts from the conversation.
+const FACT_EXTRACTION_PROMPT: &str = r#"You are a Personal Information Organizer, specialized in accurately storing facts, user memories, and preferences. Your job is to extract distinct facts from the conversation and categorize them.
 
 Extract these types of information:
-1. Personal Preferences (likes, dislikes: food, products, activities, entertainment)
-2. Important Personal Details (names, relationships, important dates)
-3. Plans and Intentions (upcoming events, trips, goals)
-4. Activity/Service Preferences (dining, travel, hobbies)
-5. Health/Wellness (dietary restrictions, fitness routines)
-6. Professional Details (job titles, work habits, career goals)
-7. Miscellaneous (favorite books, movies, brands)
+1. Personal Preferences (likes, dislikes: food, products, activities, entertainment) → category: "preference"
+2. Important Personal Details (names, relationships, important dates) → category: "personal"
+3. Plans and Intentions (upcoming events, trips, goals) → category: "plan"
+4. Activity/Service Preferences (dining, travel, hobbies) → category: "preference"
+5. Health/Wellness (dietary restrictions, fitness routines) → category: "health"
+6. Professional Details (job titles, work habits, career goals) → category: "professional"
+7. Miscellaneous (favorite books, movies, brands) → category: "misc"
 
 IMPORTANT: Extract from BOTH user and assistant messages. Information the assistant provided to the user (recommendations, answers, facts shared) is also worth storing. Do NOT include greetings or generic statements.
 
-Return a JSON array of strings, each being one distinct fact.
+Return a JSON array of objects, each with "fact" and "category" fields.
+Valid categories: preference, personal, plan, professional, health, misc
 If no facts can be extracted, return: []
 
 Examples:
 - "Hi." → []
 - "There are branches in trees." → []
-- "I am looking for a restaurant in San Francisco." → ["Looking for a restaurant in San Francisco"]
-- "My name is John. I am a software engineer." → ["Name is John", "Is a software engineer"]
-- "Yesterday I had a meeting with John at 3pm about the new project." → ["Had a meeting with John at 3pm", "Discussed the new project with John"]
+- "I am looking for a restaurant in San Francisco." → [{"fact": "Looking for a restaurant in San Francisco", "category": "plan"}]
+- "My name is John. I am a software engineer." → [{"fact": "Name is John", "category": "personal"}, {"fact": "Is a software engineer", "category": "professional"}]
 
 Respond with ONLY the JSON array."#;
 
@@ -74,9 +74,15 @@ Respond with ONLY the JSON array."#;
 
 // ── Fact extraction ──────────────────────────────────────────────────
 
-pub async fn extract_facts(config: &LlmConfig, text: &str) -> Result<Vec<String>> {
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CategorizedFact {
+    pub fact: String,
+    pub category: String,
+}
+
+pub async fn extract_facts(config: &LlmConfig, text: &str) -> Result<Vec<CategorizedFact>> {
     let response = llm_call(config, FACT_EXTRACTION_PROMPT, text).await?;
-    parse_json_array(&response)
+    parse_categorized_facts(&response)
 }
 
 // ── Deduplication ────────────────────────────────────────────────────
@@ -422,6 +428,32 @@ fn parse_json_array(s: &str) -> Result<Vec<String>> {
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect());
         }
+    }
+    Ok(Vec::new())
+}
+
+fn parse_categorized_facts(s: &str) -> Result<Vec<CategorizedFact>> {
+    // Try parsing as array of {fact, category} objects
+    if let Ok(arr) = serde_json::from_str::<Vec<CategorizedFact>>(s) {
+        return Ok(arr);
+    }
+    // Try to find array in response
+    if let Some(start) = s.find('[') {
+        if let Some(end) = s.rfind(']') {
+            if let Ok(arr) = serde_json::from_str::<Vec<CategorizedFact>>(&s[start..=end]) {
+                return Ok(arr);
+            }
+        }
+    }
+    // Fallback: try parsing as plain string array (old format) and wrap with "misc"
+    if let Ok(arr) = parse_json_array(s) {
+        return Ok(arr
+            .into_iter()
+            .map(|f| CategorizedFact {
+                fact: f,
+                category: "misc".to_string(),
+            })
+            .collect());
     }
     Ok(Vec::new())
 }

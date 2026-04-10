@@ -41,6 +41,8 @@ struct UpdateRequest {
 #[derive(Deserialize)]
 struct UserQuery {
     user_id: String,
+    #[serde(default)]
+    category: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -227,7 +229,12 @@ async fn get_all_memories(
     Query(q): Query<UserQuery>,
 ) -> Result<Json<ApiResponse<Vec<crate::store::MemoryRecord>>>, (StatusCode, Json<ErrorResponse>)>
 {
-    match state.memory.get_all(&q.user_id).await {
+    let result = if let Some(ref category) = q.category {
+        state.memory.get_by_category(&q.user_id, category).await
+    } else {
+        state.memory.get_all(&q.user_id).await
+    };
+    match result {
         Ok(records) => Ok(Json(ApiResponse {
             success: true,
             data: records,

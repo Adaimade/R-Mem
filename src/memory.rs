@@ -46,17 +46,24 @@ impl MemoryManager {
     /// 5. Execute actions
     /// 6. In parallel: extract entities + relations for graph
     pub async fn add(&self, user_id: &str, text: &str) -> Result<Vec<AddResult>> {
-        // Step 1: Extract facts
-        let facts = extract::extract_facts(&self.config.llm, text).await?;
-        info!(count = facts.len(), "Extracted facts");
+        // Step 1: Extract facts (with categories)
+        let categorized_facts = extract::extract_facts(&self.config.llm, text).await?;
+        info!(count = categorized_facts.len(), "Extracted facts");
 
-        if facts.is_empty() {
+        if categorized_facts.is_empty() {
             return Ok(Vec::new());
         }
 
+        // Extract fact strings for embedding/dedup, keep categories alongside
+        let fact_strings: Vec<String> = categorized_facts.iter().map(|cf| cf.fact.clone()).collect();
+        let category_map: std::collections::HashMap<String, String> = categorized_facts
+            .iter()
+            .map(|cf| (cf.fact.clone(), cf.category.clone()))
+            .collect();
+
         // Step 2: Embed all facts in parallel, then search for similar existing memories
         let top_k = self.config.memory.search_top_k;
-        let embed_futures: Vec<_> = facts
+        let embed_futures: Vec<_> = fact_strings
             .iter()
             .map(|f| embedding::embed(&self.config.embedding, f))
             .collect();
@@ -87,16 +94,17 @@ impl MemoryManager {
 
         // Step 4: LLM deduplication — decide ADD/UPDATE/DELETE/NONE
         let decisions =
-            extract::deduplicate(&self.config.llm, &existing_for_llm, &facts).await?;
+            extract::deduplicate(&self.config.llm, &existing_for_llm, &fact_strings).await?;
 
         // Step 5: Execute actions
         let mut results = Vec::new();
         for decision in decisions {
+            let category = category_map.get(&decision.fact).map(|s| s.as_str()).unwrap_or("misc");
             match decision.action {
                 FactAction::Add => {
                     let id = Uuid::new_v4().to_string();
                     let emb = embedding::embed(&self.config.embedding, &decision.fact).await?;
-                    self.store.add(&id, user_id, &decision.fact, &emb).await?;
+                    self.store.add(&id, user_id, &decision.fact, category, &emb).await?;
                     info!(id = %id, "Memory ADD: {}", decision.fact);
                     results.push(AddResult {
                         id,
@@ -217,6 +225,10 @@ impl MemoryManager {
 
     pub async fn get_all(&self, user_id: &str) -> Result<Vec<MemoryRecord>> {
         self.store.get_all(user_id).await
+    }
+
+    pub async fn get_by_category(&self, user_id: &str, category: &str) -> Result<Vec<MemoryRecord>> {
+        self.store.get_by_category(user_id, category).await
     }
 
     pub async fn update(&self, id: &str, text: &str) -> Result<()> {
