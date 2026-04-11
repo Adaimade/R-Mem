@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::config::AppConfig;
 use crate::embedding;
-use crate::extract::{self, DeduplicatedFact, FactAction};
+use crate::extract::{self, FactAction};
 use crate::graph::GraphStore;
 use crate::store::{MemoryRecord, MemoryStore, SearchResult};
 

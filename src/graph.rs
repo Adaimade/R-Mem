@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use rusqlite::params;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::info;
 
 /// A relationship in the graph.
 #[derive(Debug, Clone, serde::Serialize)]
