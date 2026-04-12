@@ -15,7 +15,7 @@
 
 **3.6 MB binary** · **2,826 lines of Rust** · **< 10 MB RAM** · **SQLite only** · **MCP ready** · **LongMemEval 48.2%**
 
-[Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Usage](#-usage) · [MCP](#-mcp-server) · [Performance](#-performance) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
+[Quick Start](#-quick-start) · [Integration](#-integration-guide) · [How It Works](#-how-it-works) · [Usage](#-usage) · [MCP](#-mcp-server) · [Performance](#-performance) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
 🌐 [繁體中文](docs/README.zh-TW.md) · [简体中文](docs/README.zh-CN.md) · [日本語](docs/README.ja.md) · [한국어](docs/README.ko.md)
 
@@ -185,6 +185,79 @@ model = "text-embedding-3-small"
 > **Note:** Anthropic does not provide embedding models, so `[embedding]` uses OpenAI or Ollama even when `[llm]` uses Anthropic.
 
 > **Security:** R-Mem binds to `127.0.0.1` by default (localhost only). Never put API keys in code — use `rustmem.toml` (gitignored) or environment variables (`RUSTMEM__LLM__API_KEY`).
+
+---
+
+## 🔗 Integration Guide
+
+### ⚠️ Building a MemoryManager is not enough
+
+The most common integration mistake: you initialize `MemoryManager`, but never call `add()` or `search()` in your conversation loop. The memory system exists but is never used — nothing the user says gets remembered.
+
+### The correct conversation loop
+
+Every turn must include two memory operations:
+
+1. **Before LLM call — RECALL** (search relevant memories)
+2. **After LLM call — LEARN** (extract and store new facts)
+
+```
+loop {
+    user_message = receive()
+
+    // 1. RECALL — before calling the LLM
+    memories = rmem.search(user_id, user_message, limit=10)
+    context = format_as_context(memories)
+
+    // 2. Call LLM with memory context
+    response = llm.chat(system_prompt + context + user_message)
+
+    // 3. LEARN — after responding
+    rmem.add(user_id, user_message)
+
+    send(response)
+}
+```
+
+### Memory context format
+
+Format `search()` results as context the LLM can understand:
+
+```
+[Memory]
+Known facts about this user:
+- User's name is Alice
+- User prefers dark mode
+- User is working on a Rust project
+```
+
+Place this in the system prompt or before the user message so the LLM can reference it.
+
+### Multi-scope pattern
+
+If your app serves multiple channels (e.g. Telegram + Discord), use three scope layers:
+
+| Scope | Purpose | Example ID |
+|---|---|---|
+| local | Single conversation / group | `telegram:group_123` |
+| user | Cross-channel personal memory | `user:456` |
+| global | Shared across all users | `global:system` |
+
+Merge results at recall time:
+
+```
+local_results  = search("telegram:group_123", query)
+user_results   = search("user:456", query)
+global_results = search("global:system", query)
+all = deduplicate(local + user + global)
+```
+
+### Common mistakes
+
+- ❌ Initialize MemoryManager but never call `search()` / `add()` in the loop
+- ❌ Only LEARN without RECALL (memories stored but never retrieved)
+- ❌ Only RECALL without LEARN (reads old memories but never learns new ones)
+- ❌ Put `add()` before the LLM call (current message gets treated as known fact)
 
 ---
 
