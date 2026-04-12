@@ -13,7 +13,7 @@
 [![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet)](https://claude.ai)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
-[快速开始](#-快速开始) · [工作原理](#-工作原理) · [使用方式](#-使用方式) · [MCP](#-mcp-server) · [架构](#️-架构) · [路线图](#️-路线图)
+[快速开始](#-快速开始) · [整合指南](#-整合指南) · [工作原理](#-工作原理) · [使用方式](#-使用方式) · [MCP](#-mcp-server) · [架构](#️-架构) · [路线图](#️-路线图)
 
 🌐 [English](../README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -177,6 +177,79 @@ model = "text-embedding-3-small"
 </table>
 
 > **注意：** Anthropic 不提供 embedding 模型，因此 [embedding] 即使 [llm] 使用 Anthropic 也需要用 OpenAI 或 Ollama。
+
+---
+
+## 🔗 整合指南
+
+### ⚠️ 构建 MemoryManager 还不够
+
+最常见的整合错误：你初始化了 `MemoryManager`，但在对话循环中从未调用 `add()` 或 `search()`。记忆系统存在但从未被使用 — 用户说的任何话都不会被记住。
+
+### 正确的对话循环
+
+每一轮对话都必须包含两个记忆操作：
+
+1. **LLM 调用前 — 回忆**（搜索相关记忆）
+2. **LLM 调用后 — 学习**（提取并存储新事实）
+
+```
+loop {
+    user_message = receive()
+
+    // 1. 回忆 — 在调用 LLM 之前
+    memories = rmem.search(user_id, user_message, limit=10)
+    context = format_as_context(memories)
+
+    // 2. 带着记忆上下文调用 LLM
+    response = llm.chat(system_prompt + context + user_message)
+
+    // 3. 学习 — 在响应之后
+    rmem.add(user_id, user_message)
+
+    send(response)
+}
+```
+
+### 记忆上下文格式
+
+将 `search()` 结果格式化为 LLM 可以理解的上下文：
+
+```
+[Memory]
+关于此用户的已知事实：
+- 用户的名字是 Alice
+- 用户偏好深色模式
+- 用户正在开发一个 Rust 项目
+```
+
+将此放在 system prompt 中或用户消息之前，让 LLM 可以引用。
+
+### 多范围模式
+
+如果你的应用服务于多个频道（例如 Telegram + Discord），使用三层范围：
+
+| 范围 | 用途 | 示例 ID |
+|---|---|---|
+| local | 单个对话 / 群组 | `telegram:group_123` |
+| user | 跨频道的个人记忆 | `user:456` |
+| global | 所有用户共享 | `global:system` |
+
+在回忆时合并结果：
+
+```
+local_results  = search("telegram:group_123", query)
+user_results   = search("user:456", query)
+global_results = search("global:system", query)
+all = deduplicate(local + user + global)
+```
+
+### 常见错误
+
+- ❌ 初始化 MemoryManager 但在循环中从未调用 `search()` / `add()`
+- ❌ 只学习不回忆（记忆被存储但从未被检索）
+- ❌ 只回忆不学习（读取旧记忆但从不学习新的）
+- ❌ 在 LLM 调用前执行 `add()`（当前消息被当作已知事实）
 
 ---
 

@@ -13,7 +13,7 @@
 [![Crates.io](https://img.shields.io/crates/v/rustmem.svg)](https://crates.io/crates/rustmem)
 [![Awesome SQLite](https://img.shields.io/badge/Awesome-SQLite-green.svg)](https://github.com/planetopendata/awesome-sqlite)
 
-[빠른 시작](#-빠른-시작) · [작동 방식](#-작동-방식) · [사용법](#-사용법) · [MCP](#-mcp-server) · [아키텍처](#️-아키텍처) · [로드맵](#️-로드맵)
+[빠른 시작](#-빠른-시작) · [통합 가이드](#-통합-가이드) · [작동 방식](#-작동-방식) · [사용법](#-사용법) · [MCP](#-mcp-server) · [아키텍처](#️-아키텍처) · [로드맵](#️-로드맵)
 
 🌐 [English](../README.md) · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -175,6 +175,79 @@ model = "text-embedding-3-small"
 </table>
 
 > **참고:** Anthropic은 임베딩 모델을 제공하지 않으므로, `[llm]`에서 Anthropic을 사용하더라도 `[embedding]`은 OpenAI 또는 Ollama를 사용합니다.
+
+---
+
+## 🔗 통합 가이드
+
+### ⚠️ MemoryManager를 구축하는 것만으로는 충분하지 않습니다
+
+가장 흔한 통합 실수: `MemoryManager`를 초기화하지만 대화 루프에서 `add()`나 `search()`를 한 번도 호출하지 않는 것. 메모리 시스템은 존재하지만 사용되지 않아 — 사용자가 말한 것이 아무것도 기억되지 않습니다.
+
+### 올바른 대화 루프
+
+매 턴마다 두 가지 메모리 작업을 포함해야 합니다:
+
+1. **LLM 호출 전 — 회상** (관련 메모리 검색)
+2. **LLM 호출 후 — 학습** (새로운 사실 추출 및 저장)
+
+```
+loop {
+    user_message = receive()
+
+    // 1. 회상 — LLM 호출 전에
+    memories = rmem.search(user_id, user_message, limit=10)
+    context = format_as_context(memories)
+
+    // 2. 메모리 컨텍스트와 함께 LLM 호출
+    response = llm.chat(system_prompt + context + user_message)
+
+    // 3. 학습 — 응답 후에
+    rmem.add(user_id, user_message)
+
+    send(response)
+}
+```
+
+### 메모리 컨텍스트 형식
+
+`search()` 결과를 LLM이 이해할 수 있는 컨텍스트로 포맷합니다:
+
+```
+[Memory]
+이 사용자에 대해 알려진 사실:
+- 사용자의 이름은 Alice
+- 사용자는 다크 모드를 선호함
+- 사용자는 Rust 프로젝트를 진행 중
+```
+
+이것을 system prompt 안에 또는 사용자 메시지 앞에 배치하여 LLM이 참조할 수 있도록 합니다.
+
+### 멀티 스코프 패턴
+
+앱이 여러 채널(예: Telegram + Discord)을 지원하는 경우, 세 가지 스코프 레이어를 사용합니다:
+
+| 스코프 | 용도 | 예시 ID |
+|---|---|---|
+| local | 단일 대화 / 그룹 | `telegram:group_123` |
+| user | 채널 간 개인 메모리 | `user:456` |
+| global | 모든 사용자 공유 | `global:system` |
+
+회상 시 결과를 병합합니다:
+
+```
+local_results  = search("telegram:group_123", query)
+user_results   = search("user:456", query)
+global_results = search("global:system", query)
+all = deduplicate(local + user + global)
+```
+
+### 흔한 실수
+
+- ❌ MemoryManager를 초기화하지만 루프에서 `search()` / `add()`를 호출하지 않음
+- ❌ 학습만 하고 회상하지 않음 (메모리가 저장되지만 검색되지 않음)
+- ❌ 회상만 하고 학습하지 않음 (오래된 메모리를 읽지만 새로운 것을 학습하지 않음)
+- ❌ LLM 호출 전에 `add()`를 실행 (현재 메시지가 이미 알려진 사실로 처리됨)
 
 ---
 
