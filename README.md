@@ -428,7 +428,7 @@ src/
 | 🔲 | **Multi-modal** | Image / audio memory support |
 | 🔲 | **Dashboard** | Lightweight web UI for memory inspection |
 
-Community contributions welcome — open an issue or PR.
+R-Mem v0.3.0 is feature-complete as a learning project. The core architecture is stable and production-hardened. Community contributions, forks, and explorations are welcome — open an issue or PR.
 
 ---
 
